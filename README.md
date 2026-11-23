@@ -1,6 +1,6 @@
 # 云枢 ERP
 
-面向物联网卡和设备业务的内部 ERP 与客户自助门户。前端使用 Vue 3、TypeScript、Element Plus，后端使用 Java 21、Spring Boot、Spring Security 和 JDBC，数据保存在 MySQL。管理端和门户共用登录入口，后端分别校验账号角色、业务归属和审批节点。
+面向物联网卡和设备业务的内部 ERP 与客户自助门户。前端使用 Vue 3、TypeScript、Element Plus，后端使用 Java 21、Spring Boot、Spring Security 和 JDBC，数据保存在 MySQL。ERP 管理后台和客户门户使用独立页面地址与登录表单。后端校验入口对应的账号角色、客户归属和审批节点。
 
 ## 在 Mac 上启动
 
@@ -13,9 +13,11 @@ mysql -u root -p < database/01-schema.sql
 mysql -u root -p < database/02-demo.sql
 mysql -u root -p < database/03-prototype.sql
 mysql -u root -p < database/05-code-rules.sql
+mysql -u root -p < database/06-page-fields.sql
+mysql -u root -p < database/07-schema-comments.sql
 ```
 
-**从上一版升级**，先备份数据库并暂停写入。已执行 03 的安装只需执行 `database/05-code-rules.sql` 一次，然后更新并启动前后端。只执行过 01、02 的安装先补 03，再执行 05。04 为可选演示数据，按下文在首次启动后加载。
+**从上一版升级**，先备份业务库并暂停写入。已执行 05 的安装按顺序执行 06、07 各一次，再更新前后端。更早的版本先按上表补齐未执行的脚本。06 将旧档案表单数据和历史单据明细回填至新字段，07 为全库业务表和字段添加中文注释。04 为可选演示数据。
 
 在 MySQL 中给运行应用的本机账号授予业务库读写权限。下面使用占位密码。
 
@@ -45,7 +47,14 @@ npm ci
 npm run dev
 ```
 
-打开 <http://localhost:5173>。开发代理把 `/api` 转发至本机 8080。发布构建为前端 `npm run build` 和后端 `mvn clean package`。前端产出在 `frontend/dist`，后端可执行文件在 `backend/target`。部署时把静态页和 API 置于同一域名以使用会话和 CSRF 保护。
+| 访问对象 | 本地登录入口 | 登录后可访问 |
+| --- | --- | --- |
+| 内部员工 | `http://localhost:5173/erp/login` | 工作台、业务单据和本角色获准的配置页 |
+| 客户 | `http://localhost:5173/portal/login` | `/portal/orders` 我的订单、`/portal/cards` 我的流量卡、`/portal/inquiries` 订购申请 |
+
+根路径展示入口选择。收藏详情地址后可直接登录并回到原页。旧的 `/#/sales_order_list` 等 ERP 链接会跳至对应的新地址。同一浏览器会话使用一个账号，跨入口访问时可返回当前账号的工作区或切换账号。
+
+开发代理把 `/api` 转发至本机 8080。前端执行 `npm run build`，后端执行 `mvn clean package`。生产环境将 `frontend/dist` 部署在网站根目录。Web 服务器应将 `/erp/`、`/portal/` 下的前端页面请求回退至 `/index.html`，静态资源按实际文件返回，`/api/` 单独反向代理至 Spring Boot。两端使用同源会话及 CSRF 令牌。
 
 **可选演示业务数据**。执行 02 已可使用演示客户、供应商、商品、移动集团账号及打印模板。想直接看到两张有行明细的订单，在后端首次启动并创建演示账号后执行下列命令。它创建一张采购草稿和一张销售草稿，可以重复执行，不产生期初库存。
 

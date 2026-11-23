@@ -31,7 +31,7 @@ class Orders {
     @GetMapping("/me") Map<String,Object> me(Principal user) {
         return one("SELECT id,username,role,party_id FROM account WHERE username=?", user.getName());
     }
-    @GetMapping("/catalog") List<Map<String,Object>> catalog() {
+    @GetMapping({"/catalog","/portal/catalog"}) List<Map<String,Object>> catalog() {
         return db.queryForList("SELECT id,name,price FROM portal_catalog WHERE enabled=TRUE ORDER BY id");
     }
     @GetMapping("/erp/setup") Map<String,Object> setup() {

@@ -18,6 +18,15 @@ class Register {
     private final JdbcTemplate db;
     final ObjectMapper json;
     static final Set<String> REFERENCES=Set.of("warehouse","category","settlement","operator","unit");
+    private static final Map<String,List<String>> PAGE_FIELDS=Map.of(
+        "goods",List.of("public_name","spec","category","unit","brand","safety_stock","memo"),
+        "customer",List.of("level","manager","contact","phone","settlement","expiry","address","memo"),
+        "supplier",List.of("level","manager","contact","phone","settlement","address","memo"),
+        "warehouse",List.of("wh_type","address","manager","phone","locations","memo"),
+        "category",List.of("parent","memo"),
+        "unit",List.of("symbol","memo"),
+        "operator",List.of("contact","phone","memo"),
+        "settlement",List.of("basis","days","memo"));
     Register(Orders orders,JdbcTemplate db,ObjectMapper json) { this.orders=orders; this.db=db; this.json=json; }
 
     long insert(String sql,Object... args) {
@@ -46,7 +55,7 @@ class Register {
             fields.put(number(row,"entity_id"),decode(row.get("details").toString()));
         for(var row:records) {
             var detail=fields.getOrDefault(number(row,"id"),Map.of());
-            detail.forEach(row::putIfAbsent);
+            detail.forEach((key,value)->{ if(!row.containsKey(key)) row.put(key,value); });
             row.putIfAbsent("enabled",true);
         }
         return records;
@@ -67,7 +76,7 @@ class Register {
             require(data.details().size()<=30,"档案字段过多");
             data.details().forEach((k,v)->{require(k.matches("[a-z][a-z_]{0,39}"),"字段名称不正确");props.put(k,clean(v,250));});
         }
-        props.put("enabled",enabled);
+
         if(REFERENCES.contains(family)) {
             boolean manualCode=family.equals("category") || family.equals("settlement");
             require(!manualCode || !code.isBlank(),"请填写档案编码");
@@ -95,8 +104,28 @@ class Register {
                 db.update("UPDATE party SET name=? WHERE id=?",name,id);
             }
         }
-        String details=encode(props);
-        db.update("INSERT INTO master_profile VALUES(?,?,?) ON DUPLICATE KEY UPDATE details=?",family,id,details,details);
+        // Only identifiers from PAGE_FIELDS enter the SQL. All page values are bound parameters.
+        String table=REFERENCES.contains(family)?"base_reference":family.equals("goods")?"sku":"party";
+        var assignments=new ArrayList<String>();
+        var values=new ArrayList<Object>();
+        for(String field:PAGE_FIELDS.get(family)){
+            String value=(String)props.remove(field);
+            assignments.add("`"+field+"`=?");
+            if(field.equals("expiry") && value!=null && !value.isBlank()){
+                try { values.add(java.time.LocalDate.parse(value)); }
+                catch(java.time.format.DateTimeParseException e){ throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"合同到期日格式无效"); }
+            } else values.add(value==null || value.isBlank()?null:value);
+        }
+        if(!REFERENCES.contains(family)){assignments.add("enabled=?");values.add(enabled);}
+        values.add(id);
+        db.update("UPDATE "+table+" SET "+String.join(",",assignments)+" WHERE id=?",values.toArray());
+        if(!props.isEmpty()){
+            String extra=encode(props);
+            db.update("""
+                INSERT INTO master_profile(family,entity_id,details) VALUES(?,?,?)
+                ON DUPLICATE KEY UPDATE details=JSON_MERGE_PATCH(details,?)
+                """,family,id,extra,extra);
+        }
         return Map.of("id",id);
     }
     String encode(Object value) {

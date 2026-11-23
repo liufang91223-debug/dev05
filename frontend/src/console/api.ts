@@ -9,6 +9,7 @@ export async function api<T=any>(path:string,method='GET',value?:unknown):Promis
   if(value!==undefined) headers['Content-Type']=form?'application/x-www-form-urlencoded':'application/json'
   const response=await fetch('/api'+path,{method,headers,body:value===undefined?undefined:form?value:JSON.stringify(value)})
   if(!response.ok){
+    if(response.status===401 && !['/me','/login'].includes(path)) window.dispatchEvent(new Event('session-expired'))
     const detail=await response.json().catch(()=>({}))
     throw new Error(detail.message || ({401:'账号或密码不正确，或登录已过期',403:'当前账号没有操作权限',409:'记录已变化，请刷新'} as Record<number,string>)[response.status] || '请求未完成')
   }
@@ -20,8 +21,14 @@ export const status=(v:any,kind='')=>({DRAFT:'草稿',PENDING:kind.includes('ord
 export function numCode(prefix:string,id:any,date:any=''){
   return id ? prefix+'-'+(date ? String(date).slice(0,10).replaceAll('-','')+'-':'')+String(id).padStart(4,'0'):'自动生成'
 }
+export function navigate(path:string, replace=false) {
+  if (path===location.pathname+location.search && !location.hash) return
+  if (replace) history.replaceState(null,'',path)
+  else history.pushState(null,'',path)
+  window.dispatchEvent(new Event('popstate'))
+}
 export function go(page:string,id?:any,query=''){
-  location.hash='/'+page+(id===undefined?'':'/'+encodeURIComponent(String(id)))+query
+  navigate('/erp/'+page+(id===undefined?'':'/'+encodeURIComponent(String(id)))+query)
 }
 export function csv(name:string, cols:string[], values:any[][]){
   const cell=(v:unknown)=>{let s=String(v??''); if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'}

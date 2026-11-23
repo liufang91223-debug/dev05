@@ -8,6 +8,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
@@ -33,10 +34,19 @@ public class App {
                 .requestMatchers("/api/csrf","/api/login","/error").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/erp/**").hasAnyRole("ADMIN","ERP")
-                .requestMatchers("/api/portal/**").hasRole("CUSTOMER")
+                .requestMatchers("/api/portal/**","/api/catalog").hasRole("CUSTOMER")
                 .anyRequest().authenticated())
             .formLogin(f -> f.loginProcessingUrl("/api/login")
-                .successHandler((req,res,auth) -> res.setStatus(204))
+                .successHandler((req,res,auth) -> {
+                    String entry=req.getParameter("entry");
+                    boolean customer=auth.getAuthorities().stream().anyMatch(role->role.getAuthority().equals("ROLE_CUSTOMER"));
+                    if(entry!=null && !entry.equals(customer?"portal":"erp")){
+                        new SecurityContextLogoutHandler().logout(req,res,auth);
+                        res.setStatus(403);
+                        res.setContentType("application/json;charset=UTF-8");
+                        res.getWriter().write("{\"message\":\"账号与入口不匹配，请选择对应的登录入口\"}");
+                    } else res.setStatus(204);
+                })
                 .failureHandler((req,res,error) -> res.sendError(401)))
             .logout(l -> l.logoutUrl("/api/logout").logoutSuccessHandler((req,res,auth) -> res.setStatus(204)))
             .exceptionHandling(e -> e.authenticationEntryPoint((req,res,error) -> res.sendError(401)))

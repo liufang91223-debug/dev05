@@ -167,11 +167,16 @@ class BusinessDocuments {
         orders.lockOrder(source,"FULFILLED");
         boolean sale=d.get("kind").equals("sales_return");
         BigDecimal total=BigDecimal.ZERO;
-        var previous=db.queryForList("SELECT `lines` FROM business_document WHERE source_order=? AND kind=? AND state='POSTED'",source,d.get("kind"));
+        var returned=new HashMap<Long,Integer>();
+        db.query("""
+            SELECT l.sku_id,SUM(l.quantity) AS quantity FROM business_document_line l
+            JOIN business_document d ON d.id=l.document_id
+            WHERE d.source_order=? AND d.kind=? AND d.state='POSTED' GROUP BY l.sku_id
+            """, (org.springframework.jdbc.core.RowCallbackHandler) row->returned.put(row.getLong("sku_id"),row.getInt("quantity")),source,d.get("kind"));
         var gross=db.queryForObject("SELECT SUM(quantity*unit_price) FROM order_line WHERE order_id=?",BigDecimal.class,source);
         for(var item:items(d)) {
             var line=orders.one("SELECT l.*,s.kind FROM order_line l JOIN sku s ON s.id=l.sku_id WHERE order_id=? AND sku_id=?",source,item.sku());
-            int prior=previous.stream().flatMap(r->items(r).stream()).filter(i->i.sku()==item.sku()).mapToInt(Item::quantity).sum();
+            int prior=returned.getOrDefault(item.sku(),0);
             require(item.quantity()>0 && item.quantity()+prior<=number(line,"quantity"),"退货数量超过原单剩余可退数量");
             if("HARDWARE".equals(line.get("kind"))) adjust(warehouse,item.sku(),sale?item.quantity():-item.quantity());
             else {

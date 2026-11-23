@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import {go} from './console/api'
+import {api,go} from './console/api'
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 type Row = Record<string, any>
-const props=defineProps<{initialPage?:string; initialCard?:string; embedded?:boolean}>()
-const emit=defineEmits<{signedOut:[]}>()
-const user = ref<Row | null>(null)
+const props=defineProps<{initialPage:string; initialCard?:string}>()
 const page = ref('orders')
 const rows = ref<Row[]>([])
 const setup = ref<Row>({})
@@ -14,7 +12,6 @@ const pending = ref(false)
 const dialog = ref('')
 const data = ref<Row>({})
 const config = ref<Row>({})
-const login = ref({ username: '', password: '' })
 
 const labels: Record<string,string> = {
   plan_name:'套餐名称',
@@ -32,10 +29,6 @@ const values: Record<string,string> = {
   SALE:'销售订单', PURCHASE:'采购订单', DRAFT:'草稿', CONVERTED:'已确认转单', PENDING:'待审核', APPROVED:'已审核',
   FULFILLED:'已出入库', GROUP:'集团卡', TERMINAL:'终端卡',
 }
-const portal = computed(() => user.value?.role === 'CUSTOMER')
-const admin = computed(() => user.value?.role === 'ADMIN')
-const menu = computed(() => portal.value ? ['orders','cards','inquiries'] :
-  ['orders','inventory','cards','inquiries',...(admin.value?['master','carriers','approval','fields','templates']:[])])
 const columns = computed(() => {
   const preferences: Record<string,string[]> = {
     orders:['id','direction','party_name','state','total','created_at'],
@@ -44,7 +37,7 @@ const columns = computed(() => {
     inquiries:['id','customer_name','name','quantity','order_id'],
     carriers:['name','credential_ref','enabled'],
   }
-  return (portal.value ? Object.keys(rows.value[0] || {}) : preferences[page.value] || [])
+  return preferences[page.value] || []
 })
 const searchText=ref(''),pageNumber=ref(1)
 const matches=computed(()=>{
@@ -60,49 +53,16 @@ const fieldOptions: Record<string,string[]> = {
   cards:['iccid','msisdn','imei','plan_name','activated_on','erp_expiry','starts_on','ends_on','quota_kb','used_kb','remaining_kb','updated_at'],
 }
 
-async function api<T = any>(path: string, method = 'GET', body?: unknown): Promise<T> {
-  const headers: Record<string,string> = { Accept:'application/json' }
-  if (method !== 'GET') {
-    const token = document.cookie.split('; ').find(v => v.startsWith('XSRF-TOKEN='))?.slice(11)
-    if (token) headers['X-XSRF-TOKEN'] = decodeURIComponent(token)
-  }
-  const form = body instanceof URLSearchParams
-  if (body !== undefined) headers['Content-Type'] = form ? 'application/x-www-form-urlencoded' : 'application/json'
-  const response = await fetch('/api' + path,{method,headers,body:body === undefined ? undefined : form ? body : JSON.stringify(body)})
-  if (!response.ok) {
-    const problem = await response.json().catch(() => ({}))
-    throw new Error(problem.message || ({401:'请检查登录账号或密码',403:'当前账号没有操作权限',409:'状态已变化，请刷新'}[response.status]) || '请求失败 ('+response.status+')')
-  }
-  return (response.headers.get('content-type')?.includes('application/json') ? await response.json() : undefined) as T
-}
 async function run(task: () => Promise<void>) {
   pending.value = true
   try { await task() }
   catch (error) { if (error !== 'cancel' && error !== 'close') ElMessage.error((error as Error).message) }
   finally { pending.value = false }
 }
-async function initialize() {
-  await api('/csrf')
-  user.value = await api('/me').catch(() => null)
-  if (user.value) await start()
-}
 async function start() {
-  setup.value = portal.value ? { skus:await api('/catalog') } : await api('/erp/setup')
+  setup.value = await api('/erp/setup')
   await change(props.initialPage || 'orders')
   if(props.initialCard && page.value==='cards'){const r=rows.value.find(r=>r.iccid===props.initialCard);if(r)await openCard(r)}
-}
-async function signIn() {
-  await api('/login','POST',new URLSearchParams(login.value))
-  login.value.password = ''
-  await api('/csrf')
-  user.value = await api('/me')
-  await start()
-}
-async function signOut() {
-  await api('/logout','POST')
-  user.value = null
-  emit('signedOut')
-  await api('/csrf')
 }
 async function change(tab: string) {
   page.value = tab
@@ -116,7 +76,7 @@ async function change(tab: string) {
     steps.forEach(row => (config.value[row.direction][row.step_no-1] ||= []).push(row.account_id))
   } else if (tab === 'fields') config.value = await api('/admin/portal-fields')
   else if (tab === 'templates') config.value = Object.fromEntries((await api<Row[]>('/admin/templates')).map(row => [row.direction,row]))
-  else rows.value = await api((portal.value ? '/portal/' : tab === 'carriers' ? '/admin/' : '/erp/')+tab)
+  else rows.value = await api((tab === 'carriers' ? '/admin/' : '/erp/')+tab)
 }
 function newOrder(direction: string) {
   data.value = { direction, party:null, lines:[{sku:null,quantity:1,price:0}] }
@@ -172,7 +132,6 @@ async function save() {
   const row = data.value
   switch (dialog.value) {
     case 'order': await api('/erp/orders'+(row.id?'/'+row.id:''),row.id?'PUT':'POST',row); break
-    case 'inquiry': await api('/portal/inquiries','POST',row); break
     case 'master': await api('/admin/master/'+row.resource,'POST',row); break
     case 'carrier':
       await api('/admin/carriers'+(row.id?'/'+row.id:''),row.id?'PUT':'POST',row)
@@ -193,36 +152,18 @@ function show(value:any,key:string) {
   if (key==='enabled') return value ? '启用' : '停用'
   return values[String(value)] || value
 }
-onMounted(() => run(initialize))
+onMounted(() => run(start))
 </script>
 
 <template>
-  <div v-if="!user" class="login">
-    <el-card class="login-card" shadow="never">
-      <h1>云枢 ERP</h1>
-      <el-form label-position="top" @submit.prevent="run(signIn)">
-        <el-form-item label="账号"><el-input v-model="login.username" autocomplete="username" /></el-form-item>
-        <el-form-item label="密码"><el-input v-model="login.password" type="password" autocomplete="current-password" show-password /></el-form-item>
-        <el-button type="primary" native-type="submit" :loading="pending">登录</el-button>
-      </el-form>
-    </el-card>
-  </div>
-  <div v-else :class="embedded ? 'embedded-panel' : 'layout'">
-    <aside v-if="!embedded"><div class="brand">云枢 {{ portal ? '客户门户' : 'ERP' }}</div>
-      <button v-for="tab in menu" :key="tab" :class="{active:page===tab}" @click="run(()=>change(tab))">
-        {{ portal && tab==='cards' ? '我的流量卡' : portal && tab==='orders' ? '我的订单' : labels[tab] }}
-      </button>
-    </aside>
+  <div class="embedded-panel">
     <main v-loading="pending">
-      <header v-if="!embedded"><span>{{ user.username }}</span><el-button text @click="run(signOut)">退出</el-button></header>
       <section>
-        <div class="heading"><h1>{{ portal && page==='orders' ? '我的订单' : portal && page==='cards' ? '我的流量卡' : labels[page] }}</h1>
+        <div class="heading"><h1>{{ labels[page] }}</h1>
           <div>
-            <template v-if="page==='orders' && !portal">
+            <template v-if="page==='orders'">
               <el-button @click="newOrder('SALE')">新建销售订单</el-button><el-button type="primary" @click="newOrder('PURCHASE')">新建采购订单</el-button>
             </template>
-            <template v-if="page==='cards' && portal"><el-button @click="run(()=>change('cards'))">刷新列表</el-button><el-button type="primary" @click="run(async()=>{await api('/portal/cards/refresh','POST');ElMessage.success('已请求更新，稍后刷新列表查看结果')})">更新用量</el-button></template>
-            <el-button v-if="page==='inquiries' && portal" type="primary" @click="data={sku:null,quantity:1};dialog='inquiry'">提交订购申请</el-button>
             <el-button v-if="page==='carriers'" type="primary" @click="data={name:'',credential_ref:'',enabled:false};dialog='carrier'">添加集团账号</el-button>
           </div>
         </div>
@@ -285,7 +226,7 @@ onMounted(() => run(initialize))
           <el-table-column v-for="key in columns" :key="key" :label="labels[key] || key" :min-width="key==='iccid' ? 215 : 110">
             <template #default="{row}">{{ show(row[key],key) }}</template>
           </el-table-column>
-          <el-table-column v-if="!portal && ['orders','cards','inquiries','carriers'].includes(page)" label="操作" min-width="230" fixed="right">
+          <el-table-column v-if="['orders','cards','inquiries','carriers'].includes(page)" label="操作" min-width="230" fixed="right">
             <template #default="{row}">
               <template v-if="page==='orders'">
                 <el-button v-if="row.state==='DRAFT'" link type="primary" @click="run(()=>orderAction(row,'edit'))">编辑</el-button>
@@ -343,10 +284,7 @@ onMounted(() => run(initialize))
         </template>
       </template>
     </el-form>
-    <el-form v-else-if="dialog==='inquiry'" label-position="top">
-      <el-form-item label="商品"><el-select v-model="data.sku"><el-option v-for="s in setup.skus" :key="s.id" :label="s.name" :value="s.id"/></el-select></el-form-item>
-      <el-form-item label="数量"><el-input-number v-model="data.quantity" :min="1" :max="10000"/></el-form-item>
-    </el-form>
+
     <el-form v-else-if="dialog==='carrier'" label-position="top">
       <el-form-item label="集团账号名称"><el-input v-model="data.name" maxlength="120"/></el-form-item>
       <el-form-item label="环境凭据标识"><el-input v-model="data.credential_ref" placeholder="例如 GD_01"/></el-form-item>
