@@ -1,0 +1,78 @@
+# 云枢 ERP
+
+面向物联网卡和设备业务的内部 ERP 与客户自助门户。前端使用 Vue 3、TypeScript、Element Plus，后端使用 Java 21、Spring Boot、Spring Security 和 JDBC，数据保存在 MySQL。管理端和门户共用登录入口，后端分别校验账号角色、业务归属和审批节点。
+
+## 在 Mac 上启动
+
+压缩包的顶层目录是 `GPTCODE/`。在 Finder 中把它解压到目标父目录 `liu/YSERP/`。以下命令都从解压后的 `GPTCODE` 目录开始。依赖为 JDK 21、Maven 3.9、Node.js 22.12 或以上兼容版本和 MySQL 8.4。
+
+**首次安装**，用有建库和建表权限的本机 MySQL 账号顺序执行三个脚本。示例库名为 `yunshu`。
+
+```bash
+mysql -u root -p < database/01-schema.sql
+mysql -u root -p < database/02-demo.sql
+mysql -u root -p < database/03-prototype.sql
+```
+
+**从上一版升级**，先备份已有的 `yunshu` 库。若已成功执行上一版的 01、02，且尚未执行本版 03，仅执行 `database/03-prototype.sql` 一次。脚本会把旧版库存和卡号归入主仓库，保留历史订单、客户归属和账户。首次安装脚本与迁移脚本均只执行一次。
+
+在 MySQL 中给运行应用的本机账号授予业务库读写权限。下面使用占位密码。
+
+```sql
+CREATE USER 'yunshu'@'localhost' IDENTIFIED BY 'REPLACE_WITH_DB_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE ON yunshu.* TO 'yunshu'@'localhost';
+```
+
+**启动后端**，新开一个终端窗口。
+
+```bash
+cd backend
+export DB_USER=yunshu
+export DB_PASSWORD='REPLACE_WITH_DB_PASSWORD'
+export ERP_DEMO_PASSWORD='REPLACE_WITH_LOCAL_DEMO_PASSWORD'
+export ERP_PDF_FONT='/absolute/path/to/ChineseFont.ttf'
+mvn spring-boot:run
+```
+
+首次本地试跑将 `ERP_DEMO_PASSWORD` 改为自己选择的至少 12 位密码。此设置创建 `admin`（管理员）、`buyer`（内部采购人员）、`customer`（演示客户）。只有本地演示账号共用该初始密码。已存在的账户保留原密码，后续启动可移除此变量。默认数据库地址为 `127.0.0.1:3306/yunshu`，自定义连接可设置 `DB_URL`。中文 PDF 需要含中文字形的字体文件；TTC 字体使用带字库编号的绝对路径，例如 `/absolute/path/to/font.ttc,0`。
+
+**启动前端**，在另一个终端从项目根目录运行。
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+打开 <http://localhost:5173>。开发代理把 `/api` 转发至本机 8080。发布构建为前端 `npm run build` 和后端 `mvn clean package`。前端产出在 `frontend/dist`，后端可执行文件在 `backend/target`。部署时把静态页和 API 置于同一域名以使用会话和 CSRF 保护。
+
+**可选演示业务数据**。执行 02 已可使用演示客户、供应商、商品、移动集团账号及打印模板。想直接看到两张有行明细的订单，在后端首次启动并创建演示账号后执行下列命令。它创建一张采购草稿和一张销售草稿，可以重复执行，不产生期初库存。
+
+```bash
+mysql -u root -p < database/04-demo-orders.sql
+```
+
+## 第一次验收
+
+1. 用 `admin` 进入「订单管理 → 采购订单」。新建采购单或打开演示草稿，选择客户套餐对应的卡商品、供应商、移动集团账号、收货仓库和到货日。保存后先下载 PDF，再提交、审核。
+2. 在已审核采购单上点「生成采购入库单」，向每行录入 ICCID。终端卡可逐张指定集团账号、独立额度、激活日、套餐名称及周期。保存、提交、审核入库后检查库存和采购卡号明细。设备只填写数量。
+3. 用独立浏览器窗口登录 `customer`，提交一笔订购申请。回到 ERP 的「系统管理 → 客户订购申请」确认转单。销售订单以草稿落库。补全交期、审核并出库，流量卡逐张选择并填写 ERP 有效期。
+4. 在客户门户查看自己的订单、用量及有效期。在 ERP「客户可见字段」取消勾选某一列，再刷新门户，可验证服务端实际裁剪。门户展示商品的对客名称，可在商品档案维护。
+5. 在「流量卡查询与对账」打开已交付卡，核查移动返回日期、ERP 日期、用量快照和套餐周期。对有采购权限的终端卡设置当前周期人工修正，再撤销，核对客户展示。若缺少真实移动凭据，仍可验证周期、人工修正、权限及内部续期。
+6. 从原卡打开「新建换货出库」或「新建退货入库」，保存并提交。审核前客户仍可查旧卡。审核后客户失去旧卡权限，换货时新卡出现在同一客户门户。
+7. 验证审批配置时，给采购订单设置两个节点，第一个节点同时指派 `admin` 和 `buyer`。任一人通过即可进入第二节点。制单人在获指派节点可自审，驳回后从草稿重新提交。
+
+## 中国移动 CT
+
+「运营商接口配置」按地方移动集团账号保存名称、凭据标识和启用状态。集团账号与卡类别独立。同商品在不同批次、同一批次的不同 ICCID 都可使用不同的集团账号。假设配置的凭据标识为 `GD_01`，后端环境配置如下。
+
+```bash
+export CMCC_GD_01_APPID='REPLACE_WITH_APPID'
+export CMCC_GD_01_PASSWORD='REPLACE_WITH_PASSWORD'
+```
+
+配置后重启后端并测试认证。采购入库会登记待查询卡，后台对已启用的账号取数。ERP 可立即手动对账；客户可在门户点击「更新用量」，随后刷新列表。后台失败会有限重试，最近一次成功读取的数据保持可用。上线前需由持有移动集团生产账号的一方核对账号归属、接口订购、出口 IP 白名单和实际字段返回。
+
+集团卡使用移动资费、套餐用量和开通业务，终端卡使用池内单卡用量与内部套餐。运营商按自然月计数，客户套餐可从月中激活或交付之日起计算。有效计算起点取交付日和激活日较晚者；不能由现有读数精确分摊时，采购人员在「跨月或首期用量基线」登记本月计数器基线和此前归属该套餐周期的累计用量，再查移动即可折算。未核对的数据展示为空。人工修正只在指定套餐周期生效。销售续期只修改 ERP 有效期，运营商资费失效日独立留存供核对。
+
+页面、接口、数据库表的对应关系、验证范围及当前业务边界详见 [功能验收对照](docs/功能验收对照.md)。

@@ -1,0 +1,218 @@
+{
+  "aging_archive": {
+    "title": "结算方式",
+    "subtitle": "维护用于档案和订单的结算方式及账期。"
+  },
+  "customer_form": {
+    "title": "客户信息维护",
+    "subtitle": ""
+  },
+  "customer_list": {
+    "title": "客户列表",
+    "subtitle": ""
+  },
+  "employee_list": {
+    "title": "人员管理",
+    "subtitle": ""
+  },
+  "goods_category_form": {
+    "title": "新增商品分类",
+    "subtitle": ""
+  },
+  "goods_category_list": {
+    "title": "商品分类列表",
+    "subtitle": "选择上级分类后，可在商品档案中引用该分类。"
+  },
+  "goods_detail": {
+    "title": "商品详情",
+    "subtitle": ""
+  },
+  "goods_form": {
+    "title": "商品维护",
+    "subtitle": ""
+  },
+  "goods_list": {
+    "title": "商品列表",
+    "subtitle": "维护商品编码、采购和销售使用的商品名称、对客名称与价格。"
+  },
+  "inventory_id_list": {
+    "title": "实时库存 ICCID / 卡号明细",
+    "subtitle": ""
+  },
+  "inventory_list": {
+    "title": "实时库存商品列表",
+    "subtitle": "按仓库查看可用和锁定库存，点击商品可查在库卡号。"
+  },
+  "operator_list": {
+    "title": "运营商列表",
+    "subtitle": ""
+  },
+  "other_inbound_form": {
+    "title": "其它入库单",
+    "subtitle": ""
+  },
+  "other_inbound_list": {
+    "title": "其它入库单列表",
+    "subtitle": "按设备商品数量登记其它入库。"
+  },
+  "other_outbound_list": {
+    "title": "其它出库单列表",
+    "subtitle": "按商品数量登记其它出库，审核后扣减所在仓库的可用库存。"
+  },
+  "payment_form": {
+    "title": "登记付款单",
+    "subtitle": ""
+  },
+  "payment_list": {
+    "title": "付款列表",
+    "subtitle": "参照采购发票登记付款和核销金额。"
+  },
+  "purchase_inbound_export": {
+    "title": "入库明细导出",
+    "subtitle": ""
+  },
+  "purchase_inbound_form": {
+    "title": "采购入库单",
+    "subtitle": ""
+  },
+  "purchase_inbound_list": {
+    "title": "采购入库单列表",
+    "subtitle": "按采购订单办理入库，退货数量以负数显示。"
+  },
+  "purchase_invoice_list": {
+    "title": "采购发票列表",
+    "subtitle": "参照已入库采购单登记发票，付款时按发票核销。"
+  },
+  "purchase_order_export": {
+    "title": "采购订单明细导出",
+    "subtitle": ""
+  },
+  "purchase_order_id_list": {
+    "title": "采购订单卡号明细",
+    "subtitle": "按采购订单查询已入库的单卡及其当前归属。"
+  },
+  "purchase_order_import": {
+    "title": "采购订单明细导入",
+    "subtitle": ""
+  },
+  "purchase_order_list": {
+    "title": "采购订单列表",
+    "subtitle": ""
+  },
+  "purchase_return_form": {
+    "title": "新增采购退换货单",
+    "subtitle": ""
+  },
+  "purchase_return_list": {
+    "title": "采购退换货列表",
+    "subtitle": "参照已入库采购单办理退货，审核后扣减库存。"
+  },
+  "receipt_form": {
+    "title": "登记收款单",
+    "subtitle": ""
+  },
+  "receipt_list": {
+    "title": "收款列表",
+    "subtitle": "参照销售发票登记收款和核销金额。"
+  },
+  "report_inbound_detail": {
+    "title": "入库明细报表",
+    "subtitle": ""
+  },
+  "report_inventory_stock": {
+    "title": "库存明细列表",
+    "subtitle": ""
+  },
+  "report_outbound_detail": {
+    "title": "出库明细报表",
+    "subtitle": ""
+  },
+  "report_purchaseOrder_detail": {
+    "title": "采购订单明细列表",
+    "subtitle": ""
+  },
+  "report_purchaseOrder_export": {
+    "title": "导出配置",
+    "subtitle": ""
+  },
+  "report_receivable_summary": {
+    "title": "应收账款汇总列表",
+    "subtitle": ""
+  },
+  "report_salesOrder_detail": {
+    "title": "销售订单明细列表",
+    "subtitle": ""
+  },
+  "report_salesOrder_export": {
+    "title": "导出配置",
+    "subtitle": ""
+  },
+  "role_list": {
+    "title": "角色与权限",
+    "subtitle": ""
+  },
+  "sales_invoice_list": {
+    "title": "销售发票列表",
+    "subtitle": "参照已出库销售单登记发票，收款时按发票核销。"
+  },
+  "sales_order_export": {
+    "title": "销售订单明细导出",
+    "subtitle": ""
+  },
+  "sales_order_id_list": {
+    "title": "销售ID明细",
+    "subtitle": ""
+  },
+  "sales_order_import": {
+    "title": "销售订单明细导入",
+    "subtitle": ""
+  },
+  "sales_order_list": {
+    "title": "销售订单列表",
+    "subtitle": ""
+  },
+  "sales_outbound_export": {
+    "title": "出库明细导出",
+    "subtitle": ""
+  },
+  "sales_outbound_list": {
+    "title": "销售出库单列表",
+    "subtitle": "按销售订单办理出库，退货数量以负数显示。"
+  },
+  "sales_return_form": {
+    "title": "新增销售退换货单",
+    "subtitle": ""
+  },
+  "sales_return_list": {
+    "title": "销售退换货列表",
+    "subtitle": "按原销售单追踪退货和换货。审核后更新原卡的客户查询权限。"
+  },
+  "stock_taking_list": {
+    "title": "仓库盘点",
+    "subtitle": "按仓库登记设备实盘数量，审核后调整库存。"
+  },
+  "supplier_detail": {
+    "title": "供应商详情",
+    "subtitle": ""
+  },
+  "supplier_form": {
+    "title": "供应商信息维护",
+    "subtitle": ""
+  },
+  "supplier_list": {
+    "title": "供应商列表",
+    "subtitle": ""
+  },
+  "transfer_list": {
+    "title": "调拨管理",
+    "subtitle": "调出审核后进入在途状态，调入仓确认后入库。"
+  },
+  "unit_list": {
+    "title": "计量单位列表",
+    "subtitle": ""
+  },
+  "warehouse_list": {
+    "title": "仓库列表",
+    "subtitle": ""
+  }
+}
