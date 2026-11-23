@@ -12,7 +12,7 @@ class Reports {
     @GetMapping("/{name}") Object rows(@PathVariable String name) {
         return switch(name) {
             case "sales","purchase" -> db.queryForList("""
-                SELECT o.id AS order_id,o.direction,o.state,p.name AS party_name,COALESCE(h.business_day,CAST(o.created_at AS DATE)) AS business_day,
+                SELECT o.id AS order_id,o.order_code,o.direction,o.state,p.name AS party_name,COALESCE(h.business_day,CAST(o.created_at AS DATE)) AS business_day,
                        h.delivery_day,h.manager,h.external_code,w.name AS warehouse_name,s.code,s.name,l.quantity,l.unit_price,l.quantity*l.unit_price AS gross,x.tax_rate,x.memo
                 FROM order_line l JOIN erp_order o ON o.id=l.order_id JOIN party p ON p.id=o.party_id JOIN sku s ON s.id=l.sku_id
                 LEFT JOIN order_header h ON h.order_id=o.id LEFT JOIN base_reference w ON w.id=h.warehouse_id
@@ -24,7 +24,7 @@ class Reports {
                 JOIN sku s ON s.id=i.sku_id JOIN base_reference w ON w.id=i.warehouse_id ORDER BY w.id,s.code
                 """);
             case "inbound","outbound" -> db.queryForList("""
-                SELECT d.id,d.kind,d.business_day,d.source_order,p.name AS party_name,w.name AS warehouse_name,
+                SELECT d.id,d.doc_code,d.kind,d.business_day,d.source_order,p.name AS party_name,w.name AS warehouse_name,
                        d.`lines`,d.amount,d.state FROM business_document d LEFT JOIN party p ON p.id=d.party_id
                 LEFT JOIN base_reference w ON w.id=d.warehouse_id WHERE d.state='POSTED' AND d.kind IN (?,?,?) ORDER BY d.id DESC
                 """,name.equals("inbound")?"purchase_inbound":"sales_outbound",name.equals("inbound")?"other_inbound":"other_outbound",

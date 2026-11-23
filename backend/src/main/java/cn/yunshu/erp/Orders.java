@@ -43,13 +43,13 @@ class Orders {
     }
     @GetMapping("/erp/orders") List<Map<String,Object>> orders() {
         return db.queryForList("""
-            SELECT o.*,p.name AS party_name,h.business_day,h.delivery_day,h.manager,h.warehouse_id,h.external_code,
+            SELECT o.*,p.name AS party_name,p.code AS party_code,h.business_day,h.delivery_day,h.manager,h.warehouse_id,h.external_code,
                    (SELECT SUM(quantity*unit_price) FROM order_line WHERE order_id=o.id)-COALESCE(h.discount,0) AS total
             FROM erp_order o JOIN party p ON p.id=o.party_id LEFT JOIN order_header h ON h.order_id=o.id ORDER BY o.id DESC
             """);
     }
     @GetMapping("/erp/orders/{id}") Map<String,Object> order(@PathVariable long id) {
-        return Map.of("order", one("SELECT o.*,p.name AS party_name,h.business_day,h.delivery_day,h.manager,h.warehouse_id,h.settlement,h.external_code,h.notes,h.discount FROM erp_order o JOIN party p ON p.id=o.party_id LEFT JOIN order_header h ON h.order_id=o.id WHERE o.id=?", id),
+        return Map.of("order", one("SELECT o.*,p.name AS party_name,p.code AS party_code,h.business_day,h.delivery_day,h.manager,h.warehouse_id,h.settlement,h.external_code,h.notes,h.discount FROM erp_order o JOIN party p ON p.id=o.party_id LEFT JOIN order_header h ON h.order_id=o.id WHERE o.id=?", id),
             "lines", db.queryForList("SELECT l.*,s.name,s.code,s.kind,pa.carrier_account_id,x.tax_rate,x.internal_note,x.memo FROM order_line l JOIN sku s ON l.sku_id=s.id LEFT JOIN order_line_extra x ON x.order_id=l.order_id AND x.sku_id=l.sku_id LEFT JOIN purchase_line_account pa ON pa.order_id=l.order_id AND pa.sku_id=l.sku_id WHERE l.order_id=? ORDER BY l.sku_id", id),
             "history", db.queryForList("SELECT * FROM approval_log WHERE order_id=? ORDER BY id", id));
     }
@@ -199,7 +199,7 @@ class Orders {
     }
     @GetMapping("/portal/inquiries") List<Map<String,Object>> myInquiries(Principal user) {
         return project("inquiries",db.queryForList("""
-            SELECT i.id,s.name,i.quantity,i.created_at,CASE WHEN o.id IS NULL THEN 'DRAFT' ELSE 'CONVERTED' END AS state,o.id AS order_id
+            SELECT i.id,s.name,i.quantity,i.created_at,CASE WHEN o.id IS NULL THEN 'DRAFT' ELSE 'CONVERTED' END AS state,o.id AS order_id,o.order_code
             FROM inquiry i JOIN portal_catalog s ON s.id=i.sku_id LEFT JOIN erp_order o ON o.inquiry_id=i.id
             WHERE i.customer_id=? ORDER BY i.id DESC LIMIT 500
             """, customer(user)));
@@ -223,7 +223,7 @@ class Orders {
     }
     @GetMapping("/portal/orders") List<Map<String,Object>> myOrders(Principal user) {
         return project("orders",db.queryForList("""
-            SELECT o.id,o.state,o.created_at,SUM(l.quantity*l.unit_price)-COALESCE((SELECT discount FROM order_header WHERE order_id=o.id),0) AS total
+            SELECT o.id,o.order_code,o.state,o.created_at,SUM(l.quantity*l.unit_price)-COALESCE((SELECT discount FROM order_header WHERE order_id=o.id),0) AS total
             FROM erp_order o JOIN order_line l ON l.order_id=o.id
             WHERE o.direction='SALE' AND o.party_id=?
             GROUP BY o.id,o.state,o.created_at ORDER BY o.id DESC LIMIT 500
@@ -231,8 +231,8 @@ class Orders {
     }
 
     static final Map<String,Set<String>> PORTAL_FIELDS = Map.of(
-        "orders",Set.of("id","state","total","created_at"),
-        "inquiries",Set.of("id","name","quantity","created_at","state","order_id"),
+        "orders",Set.of("id","order_code","state","total","created_at"),
+        "inquiries",Set.of("id","name","quantity","created_at","state","order_id","order_code"),
         "cards",Set.of("iccid","msisdn","imei","plan_name","activated_on","erp_expiry","quota_kb","used_kb","remaining_kb","starts_on","ends_on","updated_at"));
     @GetMapping("/admin/portal-fields") Map<String,List<String>> fields() {
         var result = new TreeMap<String,List<String>>();

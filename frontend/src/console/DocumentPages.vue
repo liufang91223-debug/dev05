@@ -62,8 +62,8 @@ async function load(){
  ])
  setup.value=s;allCards.value=cs;orders.value=all;locations.value=w.filter(r=>r.enabled)
  records.value=data.map(r=>{const ls=typeof r.lines==='string'?JSON.parse(r.lines):r.lines;const spec=menu.find(m=>m.source===r.kind)||props.item, undo=r.kind.endsWith('_return')
- return {...r,doc_type:spec.label,code:numCode(spec.prefix!,r.id,r.business_day),qty:totalQty(ls)*(undo?-1:1),display_amount:(undo?'-':'')+money(r.amount),display_state:r.state==='POSTED'&&r.kind!==kind?'已完成':stateLabel(r.state),
- filter_date:String(r.business_day).slice(0,10),source:r.source_order?numCode(sale?'SO':'PO',r.source_order,all.find(o=>o.id===r.source_order)?.business_day):'—'}})
+ return {...r,doc_type:spec.label,code:r.doc_code||numCode(spec.prefix!,r.id,r.business_day),qty:totalQty(ls)*(undo?-1:1),display_amount:(undo?'-':'')+money(r.amount),display_state:r.state==='POSTED'&&r.kind!==kind?'已完成':stateLabel(r.state),
+ filter_date:String(r.business_day).slice(0,10),source:r.source_code||'—'}})
  if(cash&&!listOnly)invoices.value=(await api<Row[]>('/erp/documents?kind='+(sale?'sales_invoice':'purchase_invoice'))).filter(r=>r.state==='POSTED')
  if(props.recordId){const r=await api('/erp/documents/'+props.recordId);if(r.kind!==kind)throw Error('单据类型不符')
  d.value={...r,sourceOrder:r.source_order,sourceDoc:r.source_doc,warehouse:r.warehouse_id,targetWarehouse:r.target_warehouse,day:r.business_day,amount:Number(r.amount)}}
@@ -87,15 +87,15 @@ async function transition(action:string){if(action==='post'||action==='receive')
 onMounted(()=>run(load))
 </script>
 <template><ListFrame v-if="mode==='list'" :page="item.key" :user-key="user.username" :title="meta.title||item.label+'列表'" :subtitle="meta.subtitle" :rows="records" :columns="cols" :stats="stats" :busy="busy" keyword="单号 / 往来单位 / 仓库" :statuses="['草稿','待审核',stateLabel('POSTED'),...(relatedKinds.length>1&&stateLabel('POSTED')!=='已完成'?['已完成']:[]),...(transfer?['在途']:[])]" date-label="单据日期" :new-label="'新建'+item.label" :export-label="ship?undefined:'导出明细 CSV'" @open="r=>go(r.kind+'_detail',r.id)" @create="go(board(item,'form'))"><template #actions><el-button v-if="ship" @click="go(item.key.replace('_list','_export'))">明细导出</el-button></template></ListFrame>
-<template v-else><div class="page-head"><div><h1>{{mode==='form'?(recordId?'维护':'新建')+item.label:item.label+'详情'}}</h1><p class="subtitle">{{d.id?numCode(item.prefix!,d.id,d.day):'保存后生成单号'}} · {{stateLabel(d.state||'DRAFT')}}</p></div><div>
+<template v-else><div class="page-head"><div><h1>{{mode==='form'?(recordId?'维护':'新建')+item.label:item.label+'详情'}}</h1><p class="subtitle">{{d.id?(d.doc_code||numCode(item.prefix!,d.id,d.day)):'保存后生成单号'}} · {{stateLabel(d.state||'DRAFT')}}</p></div><div>
  <el-button @click="go(item.key)">返回列表</el-button><template v-if="mode==='detail'"><el-button v-if="d.state==='DRAFT'" type="primary" @click="go(board(item,'form'),d.id)">编辑单据</el-button>
  <el-button v-if="d.state==='DRAFT'" @click="run(()=>transition('submit'))">提交</el-button><template v-if="d.state==='PENDING'"><el-button @click="run(()=>transition('reject'))">驳回</el-button><el-button type="primary" @click="run(()=>transition('post'))">{{ship?(inbound?'审核入库':'确认出库'):'审核过账'}}</el-button></template>
  <el-button v-if="d.state==='TRANSIT'" type="primary" @click="run(()=>transition('receive'))">确认调入</el-button></template></div></div>
  <div class="box"><h3>{{item.label}}基本信息</h3><el-form class="gridform" label-position="top" :disabled="mode==='detail'">
  <el-form-item label="单据类型"><el-input :model-value="item.label" disabled/></el-form-item>
  <el-form-item label="单据日期" required><el-date-picker v-model="d.day" value-format="YYYY-MM-DD"/></el-form-item>
- <el-form-item v-if="(ship||ret||invoice)&&mode==='form'" :label="'参照'+(sale?'销售订单':'采购订单')" required><el-select v-model="d.sourceOrder" filterable @change="selectOrder"><el-option v-for="o in sourceOrders" :key="o.id" :value="o.id" :label="numCode(sale?'SO':'PO',o.id,o.business_day)+' · '+o.party_name"/></el-select></el-form-item>
- <el-form-item v-else-if="d.sourceOrder" label="来源订单"><button class="link" @click="go(sale?'sales_order_detail':'purchase_order_detail',d.sourceOrder)">#{{d.sourceOrder}}</button></el-form-item>
+ <el-form-item v-if="(ship||ret||invoice)&&mode==='form'" :label="'参照'+(sale?'销售订单':'采购订单')" required><el-select v-model="d.sourceOrder" filterable @change="selectOrder"><el-option v-for="o in sourceOrders" :key="o.id" :value="o.id" :label="o.order_code+' · '+o.party_name"/></el-select></el-form-item>
+ <el-form-item v-else-if="d.sourceOrder" label="来源订单"><button class="link" @click="go(sale?'sales_order_detail':'purchase_order_detail',d.sourceOrder)">{{d.source_code}}</button></el-form-item>
  <el-form-item v-if="cash" label="参照发票" required><el-select v-model="d.sourceDoc" @change="selectInvoice"><el-option v-for="i in invoices" :key="i.id" :value="i.id" :label="'#'+i.id+' '+i.party_name+' '+money(i.amount)"/></el-select></el-form-item>
  <el-form-item v-if="!financial" :label="transfer?'调出仓库':'仓库'" required><el-select v-model="d.warehouse" :disabled="ship||ret"><el-option v-for="w in locations" :key="w.id" :value="w.id" :label="w.name"/></el-select></el-form-item>
  <el-form-item v-if="transfer" label="调入仓库" required><el-select v-model="d.targetWarehouse"><el-option v-for="w in locations" :key="w.id" :value="w.id" :label="w.name"/></el-select></el-form-item>

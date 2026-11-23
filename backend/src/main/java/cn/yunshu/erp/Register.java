@@ -48,7 +48,6 @@ class Register {
             var detail=fields.getOrDefault(number(row,"id"),Map.of());
             detail.forEach(row::putIfAbsent);
             row.putIfAbsent("enabled",true);
-            row.putIfAbsent("code",("customer".equals(family)?"CUS-":"SUP-")+String.format("%05d",number(row,"id")));
         }
         return records;
     }
@@ -70,21 +69,22 @@ class Register {
         }
         props.put("enabled",enabled);
         if(REFERENCES.contains(family)) {
-            require(!code.isBlank(),"请填写档案编码");
+            boolean manualCode=family.equals("category") || family.equals("settlement");
+            require(!manualCode || !code.isBlank(),"请填写档案编码");
             if(id==0) id=insert("INSERT INTO base_reference(family,code,name,description,enabled) VALUES(?,?,?,?,?)",family,code,name,clean(data.description(),250),enabled);
             else {
                 orders.one("SELECT id FROM base_reference WHERE id=? AND family=? FOR UPDATE",id,family);
-                db.update("UPDATE base_reference SET code=?,name=?,description=?,enabled=? WHERE id=?",code,name,clean(data.description(),250),enabled,id);
+                db.update("UPDATE base_reference SET code=IF(?,?,code),name=?,description=?,enabled=? WHERE id=?",manualCode,code,name,clean(data.description(),250),enabled,id);
             }
         } else if(family.equals("goods")) {
-            require(!code.isBlank() && data.price()!=null && data.price().signum()>=0 && data.price().scale()<=2 &&
+            require(data.price()!=null && data.price().signum()>=0 && data.price().scale()<=2 &&
                 data.kind()!=null && Set.of("HARDWARE","TERMINAL","GROUP").contains(data.kind()),"请检查商品编码、类别和价格");
             if(id==0) id=insert("INSERT INTO sku(code,name,kind,price) VALUES(?,?,?,?)",code,name,data.kind(),data.price());
             else {
                 var old=orders.one("SELECT kind FROM sku WHERE id=? FOR UPDATE",id);
                 if(!old.get("kind").equals(data.kind()))
                     require(db.queryForObject("SELECT COUNT(*) FROM order_line WHERE sku_id=?",Long.class,id)==0,"已产生订单的商品不能更换类型");
-                db.update("UPDATE sku SET code=?,name=?,kind=?,price=? WHERE id=?",code,name,data.kind(),data.price(),id);
+                db.update("UPDATE sku SET name=?,kind=?,price=? WHERE id=?",name,data.kind(),data.price(),id);
             }
         } else {
             require(Set.of("customer","supplier").contains(family),"档案类型无效");

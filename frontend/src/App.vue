@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { Grid, Box, Tickets, House, DataAnalysis, Wallet, UserFilled, Setting, ArrowRight, Connection, Bell, SwitchButton, OfficeBuilding } from '@element-plus/icons-vue'
 const LegacyPanel=defineAsyncComponent(()=>import('./LegacyPanel.vue'))
 const BusinessPage=defineAsyncComponent(()=>import('./console/BusinessPage.vue'))
+const CodeRulesPage=defineAsyncComponent(()=>import('./console/CodeRulesPage.vue'))
 const HomePage=defineAsyncComponent(()=>import('./console/HomePage.vue'))
 import { api,go,type Row } from './console/api'
 import { menu,findPage } from './console/pages'
@@ -57,6 +58,7 @@ onUnmounted(()=>window.removeEventListener('hashchange',route))
       <div class="identity"><el-button text circle title="查看待办" @click="go('dashboard')"><el-icon><Bell/></el-icon></el-button><b>{{user.username.slice(0,1).toUpperCase()}}</b>{{user.username}}<el-button text title="退出登录" @click="logout"><el-icon><SwitchButton/></el-icon></el-button></div></header>
       <main class="workspace">
         <HomePage v-if="page.area==='dashboard'" :user="user"/>
+        <CodeRulesPage v-else-if="page.area==='rules'"/>
         <LegacyPanel v-else-if="page.area==='settings' && visible.some(m=>m.key===page.key)" :key="loc" :initial-card="parts[1]" :initial-page="page.source" embedded/>
         <BusinessPage v-else-if="visible.some(m=>m.key===page.key)" :key="loc" :item="page" :route-key="key" :record-id="parts[1]" :query="url.searchParams" :user="user"/>
         <el-empty v-else description="当前账号没有访问权限"/>

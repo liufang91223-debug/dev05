@@ -38,7 +38,7 @@ class Documents {
         var template=db.queryForList("SELECT * FROM print_template WHERE direction=?",direction).stream().findFirst()
             .orElse(Map.of("title",direction.equals("SALE")?"销售订单":"采购订单","company","","show_price",true));
         boolean showPrice=shown(template,"show_price"),showCode=shown(template,"show_code");
-        String number=(direction.equals("SALE")?"SO":"PO")+"-"+order.get("business_day").toString().replace("-","")+"-"+String.format("%04d",id);
+        String number=(String)order.get("order_code");
         String path=System.getenv("ERP_PDF_FONT");
         if (path==null || path.isBlank()) throw new org.springframework.web.server.ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
             "请设置 ERP_PDF_FONT 指向支持中文的 OpenType 字体");

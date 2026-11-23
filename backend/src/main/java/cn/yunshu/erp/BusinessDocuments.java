@@ -34,15 +34,15 @@ class BusinessDocuments {
     @GetMapping Object list(@RequestParam(required=false) String kind) {
         if(kind!=null) require(TYPES.contains(kind),"单据类型无效");
         String query="""
-            SELECT d.*,p.name AS party_name,w.name AS warehouse_name,t.name AS target_name,a.username AS creator
-            FROM business_document d LEFT JOIN party p ON p.id=d.party_id
+            SELECT d.*,o.order_code AS source_code,p.name AS party_name,w.name AS warehouse_name,t.name AS target_name,a.username AS creator
+            FROM business_document d LEFT JOIN erp_order o ON o.id=d.source_order LEFT JOIN party p ON p.id=d.party_id
             LEFT JOIN base_reference w ON w.id=d.warehouse_id LEFT JOIN base_reference t ON t.id=d.target_warehouse
             JOIN account a ON a.id=d.created_by
             """;
         return kind==null ? db.queryForList(query+" ORDER BY d.id DESC") : db.queryForList(query+" WHERE d.kind=? ORDER BY d.id DESC",kind);
     }
     @GetMapping("/{id}") Map<String,Object> detail(@PathVariable long id) {
-        var record=orders.one("SELECT d.*,p.name AS party_name FROM business_document d LEFT JOIN party p ON p.id=d.party_id WHERE d.id=?",id);
+        var record=orders.one("SELECT d.*,o.order_code AS source_code,p.name AS party_name FROM business_document d LEFT JOIN erp_order o ON o.id=d.source_order LEFT JOIN party p ON p.id=d.party_id WHERE d.id=?",id);
         record.put("lines",items(record));
         return record;
     }

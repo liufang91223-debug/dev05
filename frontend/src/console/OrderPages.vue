@@ -3,7 +3,7 @@ import {computed,onMounted,ref} from 'vue'
 import {ElMessage,ElMessageBox} from 'element-plus'
 import ListFrame from './ListFrame.vue'
 import {readBook,saveBook} from './workbook'
-import {day,money,numCode,api,go,status,type Row} from './api'
+import {day,money,api,go,status,type Row} from './api'
 import {board,type MenuItem} from './pages'
 import copy from './board-copy.json'
 const props=defineProps<{item:MenuItem;routeKey:string;recordId?:string;user:Row}>()
@@ -21,8 +21,8 @@ const cols=[{key:'code',label:sale?'订单编号':'采购单号',link:true,wide:
  {key:'display_total',label:sale?'订单总金额':'采购总金额',numeric:true},{key:'delivery_day',label:sale?'交货日期':'到货日期'},{key:'display_state',label:'订单状态'},...(sale?[{key:'manager',label:'客户经理'}]:[]),{key:'external_code',label:sale?'客户订单号':'供方单号'}]
 const stats=computed<[string,any,string?][]>(()=>{const month=rows.value.filter(r=>r.filter_date?.startsWith(day().slice(0,7)));return [
  [sale?'本月订单数':'本月采购订单',month.length,'笔'],[sale?'本月销售金额':'本月采购金额',money(month.reduce((a,r)=>a+Number(r.total),0))],[sale?'待审批订单':'待收货订单',rows.value.filter(r=>r.state===(sale?'PENDING':'APPROVED')).length,'笔']]})
-function enrich(o:Row){const date=String(o.business_day||o.created_at).slice(0,10);return {...o,filter_date:date,code:numCode(props.item.prefix!,o.id,date),display_total:money(o.total),
- party_code:numCode(sale?'CUS':'SUP',o.party_id),display_state:status(o.state,props.item.key)}}
+function enrich(o:Row){const date=String(o.business_day||o.created_at).slice(0,10);return {...o,filter_date:date,code:o.order_code,display_total:money(o.total),
+ display_state:status(o.state,props.item.key)}}
 async function load(){
  const [s,w,z,all]=await Promise.all([api('/erp/setup'),api('/erp/register/warehouse'),api('/erp/register/settlement'),api<Row[]>('/erp/orders')])
  setup.value=s;refs.value=w.filter((r:Row)=>r.enabled);settlements.value=z

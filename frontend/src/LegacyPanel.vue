@@ -20,7 +20,7 @@ const labels: Record<string,string> = {
   plan_name:'套餐名称',
   orders:'销售采购订单', inventory:'库存', cards:'流量卡查询与对账', inquiries:'客户订购申请',
   carriers:'运营商接口配置', approval:'审批配置', fields:'客户可见字段', templates:'打印模板', master:'基础档案与账号',
-  id:'编号', direction:'类型', party_name:'往来单位', state:'状态', total:'金额', quantity:'数量',
+  id:'编号', order_code:'订单编码', direction:'类型', party_name:'往来单位', state:'状态', total:'金额', quantity:'数量',
   customer_name:'客户', name:'名称', code:'编码', on_hand:'在库', reserved:'锁定',
   iccid:'ICCID', kind:'卡类别', carrier_name:'运营商账号', msisdn:'卡号', imei:'当前设备 IMEI', activated_on:'首次激活日',
   erp_expiry:'ERP 到期日', carrier_expiry:'运营商资费失效日', order_id:'正式订单',
@@ -55,8 +55,8 @@ const matches=computed(()=>{
 const pageRows=computed(()=>matches.value.slice((pageNumber.value-1)*20,pageNumber.value*20))
 watch([page,searchText],()=>{pageNumber.value=1})
 const fieldOptions: Record<string,string[]> = {
-  inquiries:['id','name','quantity','state','order_id','created_at'],
-  orders:['id','state','total','created_at'],
+  inquiries:['id','name','quantity','state','order_id','order_code','created_at'],
+  orders:['id','order_code','state','total','created_at'],
   cards:['iccid','msisdn','imei','plan_name','activated_on','erp_expiry','starts_on','ends_on','quota_kb','used_kb','remaining_kb','updated_at'],
 }
 
@@ -337,7 +337,7 @@ onMounted(() => run(initialize))
         <el-form-item label="名称"><el-input v-model="data.name"/></el-form-item>
         <el-form-item v-if="data.resource==='parties'" label="类型"><el-radio-group v-model="data.kind"><el-radio value="CUSTOMER">客户</el-radio><el-radio value="SUPPLIER">供应商</el-radio></el-radio-group></el-form-item>
         <template v-else>
-          <el-form-item label="商品编码"><el-input v-model="data.code"/></el-form-item>
+          <el-form-item label="商品编码"><el-input disabled placeholder="保存后自动生成"/></el-form-item>
           <el-form-item label="类别"><el-radio-group v-model="data.kind"><el-radio value="HARDWARE">普通设备</el-radio><el-radio value="GROUP">集团卡</el-radio><el-radio value="TERMINAL">终端卡</el-radio></el-radio-group></el-form-item>
           <el-form-item label="参考售价"><el-input-number v-model="data.price" :min="0" :precision="2"/></el-form-item>
         </template>

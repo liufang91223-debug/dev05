@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed,onMounted,ref} from 'vue'
 import {ElMessage} from 'element-plus'
-import {api,go,money,status,numCode,day,type Row} from './api'
+import {api,go,money,status,day,type Row} from './api'
 import type {MenuItem} from './pages'
 import ExportPage from './ExportPage.vue'
 import OrderPages from './OrderPages.vue'
@@ -54,7 +54,7 @@ async function load(){
     const skus:Row[]=(await api('/erp/setup')).skus
     list=list.flatMap(d=>(typeof d.lines==='string'?JSON.parse(d.lines):d.lines).map((l:Row)=>({...d,sku_id:l.sku,quantity:l.quantity,code:skus.find(s=>s.id===l.sku)?.code,name:skus.find(s=>s.id===l.sku)?.name})))
    }
-   rows.value=list.map(r=>({...r,filter_date:r.business_day,order_code:numCode(source==='sales'?'SO':'PO',r.order_id,r.business_day),doc_code:'#'+r.id,kind:source==='stock'?status(r.kind):r.kind,display_state:status(r.state,source==='sales'?'sales_order':'purchase_order')}))
+   rows.value=list.map(r=>({...r,filter_date:r.business_day,doc_code:r.doc_code||'#'+r.id,kind:source==='stock'?status(r.kind):r.kind,display_state:status(r.state,source==='sales'?'sales_order':'purchase_order')}))
   }
  }catch(e){ElMessage.error((e as Error).message)}finally{busy.value=false}
 }

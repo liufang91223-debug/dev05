@@ -11,6 +11,7 @@ const mode=props.routeKey===props.item.key?'list':props.routeKey===board(props.i
 const all=ref<Row[]>([]),entry=ref<Row>({enabled:true,kind:'HARDWARE',price:0}),busy=ref(false)
 const related=ref<Row[]>([]), lookup=ref<Record<string,Row[]>>({})
 const names:Record<string,string>={goods:'商品',customer:'客户',supplier:'供应商',category:'商品分类',unit:'计量单位',operator:'运营商',warehouse:'仓库',settlement:'结算方式'}
+const manualCode=src==='category'||src==='settlement'
 const noun=names[src],meta=(copy as Record<string,Row>)[props.item.key]||{}
 const fieldSets:Record<string,Record<string,string>>={
  goods:{public_name:'客户门户商品名称',spec:'规格型号',category:'商品分类',unit:'基本单位',brand:'品牌',safety_stock:'安全库存',memo:'备注'},
@@ -47,7 +48,7 @@ onMounted(()=>load().catch(e=>ElMessage.error(e.message)))
 <template v-else><div class="page-head"><div><h1>{{mode==='form'?(recordId?'编辑':'新增')+noun:entry.name}}</h1><p class="subtitle">{{item.label}} · {{entry.code||'数据维护'}}</p></div><div><el-button @click="go(item.key)">返回列表</el-button><el-button v-if="mode==='detail'" type="primary" @click="go(board(item,'form'),recordId)">编辑</el-button></div></div>
 <div class="box"><h3>基本信息</h3><el-form v-if="mode==='form'" class="gridform" label-position="top" @submit.prevent="save">
  <el-form-item :label="noun+'名称'" required><el-input v-model="entry.name" maxlength="120"/></el-form-item>
- <el-form-item :label="noun+'编码'" :required="!partner"><el-input v-model="entry.code" :disabled="partner" :placeholder="partner?'保存后自动生成':'请输入编码'"/></el-form-item>
+ <el-form-item :label="noun+'编码'" :required="manualCode"><el-input v-model="entry.code" :disabled="!manualCode" :placeholder="manualCode?'请输入编码':'保存后自动生成'"/></el-form-item>
  <el-form-item label="状态"><el-switch v-model="entry.enabled" active-text="启用" inactive-text="停用"/></el-form-item>
  <template v-if="isGoods"><el-form-item label="商品类型"><el-select v-model="entry.kind"><el-option v-for="k in ['HARDWARE','TERMINAL','GROUP']" :key="k" :value="k" :label="status(k)"/></el-select></el-form-item><el-form-item label="销售价"><el-input-number v-model="entry.price" :min="0" :precision="2"/></el-form-item></template>
  <el-form-item v-for="(label,k) in fields" :key="k" :label="label" :class="{full:k==='memo'}">
@@ -56,5 +57,5 @@ onMounted(()=>load().catch(e=>ElMessage.error(e.message)))
  <el-select v-else-if="k==='basis'" v-model="entry[k]"><el-option label="发票账期" value="发票账期"/><el-option label="货到账期" value="货到账期"/></el-select>
  <el-input v-else v-model="entry[k]" :type="k==='memo'?'textarea':'text'" maxlength="250"/></el-form-item></el-form>
  <div v-else class="detail-grid"><div v-for="c in [...cols,...Object.entries(fields).filter(([key])=>!cols.some(c=>c.key===key)).map(([key,label])=>({key,label}))]" :key="c.key"><small>{{c.label}}</small>{{entry[c.key]||'—'}}</div></div></div>
- <div v-if="mode==='detail'&&partner" class="box"><h3>关联订单</h3><el-table :data="related"><el-table-column label="订单编号"><template #default="{row}"><button class="link" @click="go(src==='customer'?'sales_order_detail':'purchase_order_detail',row.id)">#{{row.id}}</button></template></el-table-column><el-table-column prop="business_day" label="订单日期"/><el-table-column prop="total" label="订单金额"/></el-table></div>
+ <div v-if="mode==='detail'&&partner" class="box"><h3>关联订单</h3><el-table :data="related"><el-table-column label="订单编号"><template #default="{row}"><button class="link" @click="go(src==='customer'?'sales_order_detail':'purchase_order_detail',row.id)">{{row.order_code}}</button></template></el-table-column><el-table-column prop="business_day" label="订单日期"/><el-table-column prop="total" label="订单金额"/></el-table></div>
  <div v-if="mode==='form'" class="form-actions"><el-button @click="go(item.key)">取消</el-button><el-button type="primary" :loading="busy" @click="save">保存</el-button></div></template></template>

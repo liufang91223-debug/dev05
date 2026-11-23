@@ -1,4 +1,4 @@
-export type Area='register'|'order'|'doc'|'report'|'cards'|'settings'|'dashboard'|'users'
+export type Area='rules'|'register'|'order'|'doc'|'report'|'cards'|'settings'|'dashboard'|'users'
 export interface MenuItem { key:string; label:string; area:Area; source:string; prefix?:string; group:string; section?:string }
 const rows:MenuItem[]=[]
 function group(name:string,area:Area,entries:[string,string,string,string?,string?][]){
@@ -10,6 +10,7 @@ group('基础档案','register',[
   ['customer_list','客户管理','customer','CUS'],['supplier_list','供应商管理','supplier','SUP'],
   ['unit_list','计量单位','unit','UNIT'],['warehouse_list','仓库档案','warehouse','WH'],
   ['operator_list','运营商管理','operator','OP'],['aging_archive','结算方式','settlement','SET']])
+group('基础档案','rules',[['code_rules','编码规则','code_rules']])
 group('订单管理','order',[['sales_order_list','销售订单','SALE','SO'],['purchase_order_list','采购订单','PURCHASE','PO']])
 group('订单管理','cards',[['sales_order_id_list','销售ID列表','sold']])
 group('订单管理','doc',[['sales_return_list','销售退货','sales_return','ST'],['sales_exchange_list','换货出库','sales_exchange','EX'],['purchase_return_list','采购退货','purchase_return','PR']])

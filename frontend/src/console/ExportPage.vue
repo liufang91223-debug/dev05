@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed, onMounted, ref} from 'vue'
 import {ElMessage} from 'element-plus'
-import {api, csv, go, numCode, status, type Row} from './api'
+import {api, csv, go, status, type Row} from './api'
 import type {MenuItem} from './pages'
 import {saveBook} from './workbook'
 const props=defineProps<{item:MenuItem;routeKey:string}>()
@@ -19,16 +19,16 @@ onMounted(async()=>{
   try {
     if(!warehouse){
       const data=await api<Row[]>('/erp/reports/'+(sale?'sales':'purchase'))
-      rows.value=data.map(r=>({...r,date:r.business_day,order_code:numCode(sale?'SO':'PO',r.order_id,r.business_day),display_state:status(r.state,sale?'sales_order':'purchase_order')}))
+      rows.value=data.map(r=>({...r,date:r.business_day,display_state:status(r.state,sale?'sales_order':'purchase_order')}))
     }else{
       const base=sale?'sales_outbound':'purchase_inbound', ret=sale?'sales_return':'purchase_return'
-      const [docs,returns,setup,cards,orders]=await Promise.all([api<Row[]>('/erp/documents?kind='+base),api<Row[]>('/erp/documents?kind='+ret),api('/erp/setup'),api<Row[]>('/erp/cards'),api<Row[]>('/erp/orders')])
-      const sku=new Map<number,Row>(setup.skus.map((r:Row)=>[r.id,r])), phone=new Map(cards.map(r=>[r.iccid,r.msisdn])), order=new Map(orders.map(r=>[r.id,r.business_day||r.created_at]))
+      const [docs,returns,setup,cards]=await Promise.all([api<Row[]>('/erp/documents?kind='+base),api<Row[]>('/erp/documents?kind='+ret),api('/erp/setup'),api<Row[]>('/erp/cards')])
+      const sku=new Map<number,Row>(setup.skus.map((r:Row)=>[r.id,r])), phone=new Map(cards.map(r=>[r.iccid,r.msisdn]))
       rows.value=[...docs,...returns].filter(d=>d.state==='POSTED').sort((a,b)=>b.id-a.id).flatMap(d=>{
         const returning=d.kind===ret, sign=returning?-1:1
         const lines:Row[]=typeof d.lines==='string'?JSON.parse(d.lines):d.lines
         return lines.flatMap(l=>{
-          const item=sku.get(l.sku), product={date:d.business_day,doc_code:numCode(returning?(sale?'ST':'PR'):(sale?'OS':'PI'),d.id,d.business_day),order_code:numCode(sale?'SO':'PO',d.source_order,order.get(d.source_order)),kind:returning?'退货':props.item.label,party_name:d.party_name,warehouse_name:d.warehouse_name,code:item?.code,name:item?.name}
+          const item=sku.get(l.sku), product={date:d.business_day,doc_code:d.doc_code,order_code:d.source_code,kind:returning?'退货':props.item.label,party_name:d.party_name,warehouse_name:d.warehouse_name,code:item?.code,name:item?.name}
           if(l.cards?.length)return l.cards.map((c:Row)=>({...product,quantity:sign,iccid:c.iccid,msisdn:phone.get(c.iccid)||''}))
           return [{...product,quantity:l.quantity*sign,iccid:'',msisdn:''}]
         })

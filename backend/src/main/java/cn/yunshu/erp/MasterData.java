@@ -31,11 +31,11 @@ class MasterData {
         db.update("INSERT INTO party(name,kind) VALUES(?,?)",data.name().trim(),data.kind());
     }
     @PostMapping("/skus") void createSku(@RequestBody Sku data) {
-        require(valid(data.code(),40) && valid(data.name(),120)
+        require(valid(data.name(),120)
             && Set.of("HARDWARE","GROUP","TERMINAL").contains(data.kind())
             && data.price()!=null && data.price().signum()>=0 && data.price().scale()<=2
             && data.price().compareTo(new BigDecimal("99999999999999.99"))<=0,"商品参数无效");
-        db.update("INSERT INTO sku(code,name,kind,price) VALUES(?,?,?,?)",data.code().trim(),data.name().trim(),data.kind(),data.price());
+        db.update("INSERT INTO sku(code,name,kind,price) VALUES(?,?,?,?)","",data.name().trim(),data.kind(),data.price());
     }
     @PostMapping("/accounts") void createAccount(@RequestBody Account data) {
         require(data.username()!=null && data.username().matches("[a-zA-Z0-9_.-]{3,80}")
