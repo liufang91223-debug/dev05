@@ -41,6 +41,7 @@ function download(){csv(props.title,visible.value.map(c=>c.label),filtered.value
           <el-tag v-else-if="c.key==='display_state'" :type="['待审批','待审核','草稿','在途'].includes(row[c.key])?'warning':'success'" effect="light">{{row[c.key]}}</el-tag>
           <span v-else :class="{negative:String(row[c.key]).startsWith('-')}">{{row[c.key]??'—'}}</span></template>
       </el-table-column>
+      <el-table-column v-if="$slots.rowActions" label="操作" fixed="right" width="88"><template #default="{row}"><slot name="rowActions" :row="row"/></template></el-table-column>
     </el-table>
     <div class="page-end"><small class="muted">显示第 {{filtered.length?1+(pageNo-1)*size:0}}–{{Math.min(pageNo*size,filtered.length)}} 条，共 {{filtered.length}} 条</small>
       <el-pagination v-model:current-page="pageNo" v-model:page-size="size" :page-sizes="[10,20,50,100]" :total="filtered.length" layout="sizes, prev, pager, next" small/></div></div>

@@ -13,14 +13,16 @@ import static cn.yunshu.erp.Orders.require;
 class MasterData {
     private final JdbcTemplate db;
     private final Orders orders;
+    private final Register register;
     private final BCryptPasswordEncoder passwords;
 
-    MasterData(JdbcTemplate db,Orders orders,BCryptPasswordEncoder passwords) {
+    MasterData(JdbcTemplate db,Orders orders,BCryptPasswordEncoder passwords,Register register) {
+        this.register=register;
         this.db=db; this.orders=orders; this.passwords=passwords;
     }
 
     record Party(String name,String kind) {}
-    record Sku(String code,String name,String kind,BigDecimal price) {}
+    record Sku(String code,String name,String kind,BigDecimal price,Long categoryId) {}
     record Account(String username,String password,String role,Long party) {}
 
     @GetMapping("/accounts") Object accounts() {
@@ -35,7 +37,7 @@ class MasterData {
             && Set.of("HARDWARE","GROUP","TERMINAL").contains(data.kind())
             && data.price()!=null && data.price().signum()>=0 && data.price().scale()<=2
             && data.price().compareTo(new BigDecimal("99999999999999.99"))<=0,"商品参数无效");
-        db.update("INSERT INTO sku(code,name,kind,price) VALUES(?,?,?,?)","",data.name().trim(),data.kind(),data.price());
+        register.create("goods",new Register.Entry("",data.name(),data.kind(),data.price(),true,"",null,data.categoryId(),null));
     }
     @PostMapping("/accounts") void createAccount(@RequestBody Account data) {
         require(data.username()!=null && data.username().matches("[a-zA-Z0-9_.-]{3,80}")

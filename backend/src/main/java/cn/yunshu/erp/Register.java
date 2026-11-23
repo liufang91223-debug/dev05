@@ -1,5 +1,6 @@
 package cn.yunshu.erp;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -17,17 +18,20 @@ class Register {
     private final Orders orders;
     private final JdbcTemplate db;
     final ObjectMapper json;
+    private final ProductCategories categories;
     static final Set<String> REFERENCES=Set.of("warehouse","category","settlement","operator","unit");
     private static final Map<String,List<String>> PAGE_FIELDS=Map.of(
-        "goods",List.of("public_name","spec","category","unit","brand","safety_stock","memo"),
+        "goods",List.of("public_name","spec","unit","brand","safety_stock","memo"),
         "customer",List.of("level","manager","contact","phone","settlement","expiry","address","memo"),
         "supplier",List.of("level","manager","contact","phone","settlement","address","memo"),
         "warehouse",List.of("wh_type","address","manager","phone","locations","memo"),
-        "category",List.of("parent","memo"),
+        "category",List.of("memo"),
         "unit",List.of("symbol","memo"),
         "operator",List.of("contact","phone","memo"),
         "settlement",List.of("basis","days","memo"));
-    Register(Orders orders,JdbcTemplate db,ObjectMapper json) { this.orders=orders; this.db=db; this.json=json; }
+    Register(Orders orders,JdbcTemplate db,ObjectMapper json,ProductCategories categories) {
+        this.orders=orders; this.db=db; this.json=json; this.categories=categories;
+    }
 
     long insert(String sql,Object... args) {
         var key=new GeneratedKeyHolder();
@@ -42,10 +46,12 @@ class Register {
     @GetMapping("/erp/register/{family}")
     List<Map<String,Object>> list(@PathVariable String family) {
         List<Map<String,Object>> records;
-        if (REFERENCES.contains(family)) {
+        if ("category".equals(family)) {
+            records=db.queryForList("SELECT * FROM product_category_tree ORDER BY id DESC");
+        } else if (REFERENCES.contains(family)) {
             records=db.queryForList("SELECT * FROM base_reference WHERE family=? ORDER BY id DESC",family);
         } else if ("goods".equals(family)) {
-            records=db.queryForList("SELECT * FROM sku ORDER BY id DESC");
+            records=db.queryForList("SELECT s.*,c.category_path,c.category_level,c.enabled AS category_enabled FROM sku s LEFT JOIN product_category_tree c ON c.id=s.category_id ORDER BY s.id DESC");
         } else {
             require(Set.of("customer","supplier").contains(family),"档案类型无效");
             records=db.queryForList("SELECT * FROM party WHERE kind=? ORDER BY id DESC",family.toUpperCase(Locale.ROOT));
@@ -60,12 +66,21 @@ class Register {
         }
         return records;
     }
-    record Entry(String code,String name,String kind,BigDecimal price,Boolean enabled,String description,Map<String,String> details) {}
+    record Entry(String code,String name,String kind,BigDecimal price,Boolean enabled,String description,Map<String,String> details,@JsonAlias("category_id") Long categoryId,
+                 @JsonAlias("parent_id") Long parentId) {}
     @PostMapping("/erp/register/{family}") @Transactional
     Map<String,Long> create(@PathVariable String family,@RequestBody Entry data) { return save(family,0,data); }
     @PutMapping("/erp/register/{family}/{id}") @Transactional
     Map<String,Long> edit(@PathVariable String family,@PathVariable long id,@RequestBody Entry data) {
         require(id>0,"档案编号无效"); return save(family,id,data);
+    }
+    @DeleteMapping("/erp/register/{family}/{id}") @Transactional
+    void remove(@PathVariable String family,@PathVariable long id) {
+        require(family.equals("goods") || family.equals("category"),"此类型不支持删除");
+        categories.lock();
+        if(family.equals("category")) categories.deleteCategory(id);
+        else categories.deleteGoods(id);
+        db.update("DELETE FROM master_profile WHERE family=? AND entity_id=?",family,id);
     }
     private Map<String,Long> save(String family,long id,Entry data) {
         String name=clean(data.name(),120), code=clean(data.code(),40);
@@ -77,14 +92,19 @@ class Register {
             data.details().forEach((k,v)->{require(k.matches("[a-z][a-z_]{0,39}"),"字段名称不正确");props.put(k,clean(v,250));});
         }
 
+        boolean creating=id==0;
+        boolean isCategory=family.equals("category");
+        if(isCategory || family.equals("goods")) categories.lock();
         if(REFERENCES.contains(family)) {
-            boolean manualCode=family.equals("category") || family.equals("settlement");
+            Long parent=isCategory?categories.resolve(data.parentId(),props.remove("parent")):null;
+            boolean manualCode=isCategory || family.equals("settlement");
             require(!manualCode || !code.isBlank(),"请填写档案编码");
             if(id==0) id=insert("INSERT INTO base_reference(family,code,name,description,enabled) VALUES(?,?,?,?,?)",family,code,name,clean(data.description(),250),enabled);
             else {
                 orders.one("SELECT id FROM base_reference WHERE id=? AND family=? FOR UPDATE",id,family);
                 db.update("UPDATE base_reference SET code=IF(?,?,code),name=?,description=?,enabled=? WHERE id=?",manualCode,code,name,clean(data.description(),250),enabled,id);
             }
+            if(isCategory) categories.saveCategory(id,creating,parent,name);
         } else if(family.equals("goods")) {
             require(data.price()!=null && data.price().signum()>=0 && data.price().scale()<=2 &&
                 data.kind()!=null && Set.of("HARDWARE","TERMINAL","GROUP").contains(data.kind()),"请检查商品编码、类别和价格");
@@ -95,6 +115,7 @@ class Register {
                     require(db.queryForObject("SELECT COUNT(*) FROM order_line WHERE sku_id=?",Long.class,id)==0,"已产生订单的商品不能更换类型");
                 db.update("UPDATE sku SET name=?,kind=?,price=? WHERE id=?",name,data.kind(),data.price(),id);
             }
+            categories.assignGoods(id,categories.resolve(data.categoryId(),props.remove("category")));
         } else {
             require(Set.of("customer","supplier").contains(family),"档案类型无效");
             String kind=family.toUpperCase(Locale.ROOT);

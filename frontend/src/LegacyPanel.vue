@@ -69,7 +69,7 @@ async function change(tab: string) {
   rows.value = []
   if (tab === 'master') {
     setup.value = await api('/erp/setup')
-    config.value = {accounts:await api('/admin/master/accounts')}
+    config.value = {accounts:await api('/admin/master/accounts'),categories:(await api<Row[]>('/erp/register/category')).filter(r=>r.enabled && r.category_level===3)}
   } else if (tab === 'approval') {
     config.value = { SALE:[], PURCHASE:[] }
     const steps: Row[] = await api('/admin/approval')
@@ -276,6 +276,7 @@ onMounted(() => run(start))
       </template>
       <template v-else>
         <el-form-item label="名称"><el-input v-model="data.name"/></el-form-item>
+        <el-form-item v-if="data.resource==='skus'" label="商品分类" required><el-select v-model="data.categoryId" filterable placeholder="选择启用的三级分类"><el-option v-for="r in config.categories" :key="r.id" :value="r.id" :label="r.category_path"/></el-select></el-form-item>
         <el-form-item v-if="data.resource==='parties'" label="类型"><el-radio-group v-model="data.kind"><el-radio value="CUSTOMER">客户</el-radio><el-radio value="SUPPLIER">供应商</el-radio></el-radio-group></el-form-item>
         <template v-else>
           <el-form-item label="商品编码"><el-input disabled placeholder="保存后自动生成"/></el-form-item>

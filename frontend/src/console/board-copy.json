@@ -21,7 +21,7 @@
   },
   "goods_category_list": {
     "title": "商品分类列表",
-    "subtitle": "选择上级分类后，可在商品档案中引用该分类。"
+    "subtitle": "管理三级分类，查看直接关联的子分类和商品数量。"
   },
   "goods_detail": {
     "title": "商品详情",
