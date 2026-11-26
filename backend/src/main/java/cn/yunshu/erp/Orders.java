@@ -107,11 +107,11 @@ class Orders {
 
     void saveLines(long id, List<Line> lines) {
         for (Line line : lines) {
-            db.update("INSERT INTO order_line VALUES(?,?,?,?)",id,line.sku(),line.quantity(),line.price());
+            db.update("INSERT INTO order_line(order_id,sku_id,quantity,unit_price) VALUES(?,?,?,?)",id,line.sku(),line.quantity(),line.price());
             var tax=line.taxRate()==null ? BigDecimal.valueOf(13) : line.taxRate();
             require(Set.of(0,3,6,9,13).contains(tax.intValue()) && tax.stripTrailingZeros().scale()<=0,"税率无效");
-            if(line.carrierAccount()!=null){one("SELECT id FROM carrier_account WHERE id=?",line.carrierAccount());db.update("INSERT INTO purchase_line_account VALUES(?,?,?)",id,line.sku(),line.carrierAccount());}
-            db.update("INSERT INTO order_line_extra VALUES(?,?,?,?,?)",id,line.sku(),tax,clean(line.internalNote(),200),clean(line.memo(),200));
+            if(line.carrierAccount()!=null){one("SELECT id FROM carrier_account WHERE id=?",line.carrierAccount());db.update("INSERT INTO purchase_line_account(order_id,sku_id,carrier_account_id) VALUES(?,?,?)",id,line.sku(),line.carrierAccount());}
+            db.update("INSERT INTO order_line_extra(order_id,sku_id,tax_rate,internal_note,memo) VALUES(?,?,?,?,?)",id,line.sku(),tax,clean(line.internalNote(),200),clean(line.memo(),200));
         }
     }
     static String clean(String value,int max) {
@@ -123,13 +123,14 @@ class Orders {
         var day=h==null || h.businessDay()==null ? Cards.today() : h.businessDay();
         var delivery=h==null?null:h.deliveryDay();
         require(delivery==null || !delivery.isBefore(day),"交货日期不能早于订单日期");
-        long warehouse=h==null || h.warehouse()==null ? 1L : h.warehouse();
+        Long warehouse=h==null || h.warehouse()==null ? defaultWarehouse() : h.warehouse();
+        require(warehouse!=null,"请先建立并启用仓库档案");
         one("SELECT id FROM base_reference WHERE id=? AND family='warehouse' AND enabled=TRUE",warehouse);
         var discount=h==null || h.discount()==null ? BigDecimal.ZERO : h.discount();
         var gross=draft.lines().stream().map(l->l.price().multiply(BigDecimal.valueOf(l.quantity()))).reduce(BigDecimal.ZERO,BigDecimal::add);
         require(discount.signum()>=0 && discount.scale()<=2 && discount.compareTo(gross)<=0,"优惠金额不能超过商品金额");
         db.update("DELETE FROM order_header WHERE order_id=?",id);
-        db.update("INSERT INTO order_header VALUES(?,?,?,?,?,?,?,?,?)",id,day,delivery,clean(h==null?null:h.manager(),100),warehouse,
+        db.update("INSERT INTO order_header(order_id,business_day,delivery_day,manager,warehouse_id,settlement,external_code,notes,discount) VALUES(?,?,?,?,?,?,?,?,?)",id,day,delivery,clean(h==null?null:h.manager(),100),warehouse,
             clean(h==null?null:h.settlement(),120),clean(h==null?null:h.externalCode(),90),clean(h==null?null:h.notes(),250),discount);
     }
 
@@ -184,7 +185,7 @@ class Orders {
             require(steps.get(i)!=null && !steps.get(i).isEmpty(),"审批节点不能为空");
             for (long user : steps.get(i)) {
                 one("SELECT id FROM account WHERE id=? AND role<>'CUSTOMER'",user);
-                db.update("INSERT INTO approval_step VALUES(?,?,?)",direction,i+1,user);
+                db.update("INSERT INTO approval_step(direction,step_no,account_id) VALUES(?,?,?)",direction,i+1,user);
             }
         }
     }
@@ -244,7 +245,7 @@ class Orders {
     void fields(@PathVariable String resource,@RequestBody Set<String> fields) {
         require(PORTAL_FIELDS.containsKey(resource) && PORTAL_FIELDS.get(resource).containsAll(fields),"字段不在客户可见清单内");
         db.update("DELETE FROM portal_field WHERE resource=?",resource);
-        fields.forEach(f -> db.update("INSERT INTO portal_field VALUES(?,?)",resource,f));
+        fields.forEach(f -> db.update("INSERT INTO portal_field(resource,field_key) VALUES(?,?)",resource,f));
     }
     List<Map<String,Object>> project(String resource,List<Map<String,Object>> rows) {
         var keys = db.queryForList("SELECT field_key FROM portal_field WHERE resource=?",String.class,resource);
@@ -259,9 +260,17 @@ class Orders {
         if (!state.equals(row.get("state"))) throw new ResponseStatusException(HttpStatus.CONFLICT,"单据状态已变化，请刷新");
         return row;
     }
+    Long defaultWarehouse() {
+        return db.queryForList("""
+            SELECT id FROM base_reference WHERE family='warehouse' AND enabled=TRUE
+            ORDER BY CASE WHEN code='WH-001' THEN 0 ELSE 1 END,id LIMIT 1
+            """,Long.class).stream().findFirst().orElse(null);
+    }
     long warehouse(long id) {
         var warehouses=db.queryForList("SELECT warehouse_id FROM order_header WHERE order_id=?",Long.class,id);
-        return warehouses.isEmpty()?1L:warehouses.getFirst();
+        Long warehouse=warehouses.isEmpty()?defaultWarehouse():warehouses.getFirst();
+        if(warehouse==null) throw new ResponseStatusException(HttpStatus.CONFLICT,"单据未设置仓库，请先建立并启用仓库档案");
+        return warehouse;
     }
     void log(long id,long round,long step,long actor,String action,String reason) {
         db.update("INSERT INTO approval_log(order_id,round_no,step_no,actor_id,action,reason) VALUES(?,?,?,?,?,?)",id,round,step,actor,action,reason);

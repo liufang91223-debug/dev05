@@ -1,3 +1,6 @@
+-- Fresh-install only: run after database/01-schema.sql and database/02-demo.sql.
+-- Historical fresh-install script. For the merged release, use migrate.py for
+-- both installation and upgrade; do not rerun this file on a business database.
 USE yunshu;
 
 CREATE TABLE base_reference (
@@ -9,11 +12,16 @@ CREATE TABLE base_reference (
  enabled BOOLEAN NOT NULL DEFAULT TRUE,
  UNIQUE(family,code)
 );
-INSERT INTO base_reference(id,family,code,name) VALUES
- (1,'warehouse','WH-001','主仓库'),(2,'unit','UNIT-001','张'),
- (3,'unit','UNIT-002','台'),(4,'settlement','SET-001','月结 30 天'),
- (5,'category','CAT-001','物联网卡'),(6,'category','CAT-002','通信设备'),
- (7,'operator','OP-001','中国移动');
+INSERT INTO base_reference(family,code,name) VALUES
+ ('warehouse','WH-001','主仓库'),('unit','UNIT-001','张'),
+ ('unit','UNIT-002','台'),('settlement','SET-001','月结 30 天'),
+ ('category','CAT-001','物联网卡'),('category','CAT-002','通信设备'),
+ ('operator','OP-001','中国移动');
+SET @main_warehouse = (
+ SELECT id FROM base_reference
+ WHERE family='warehouse' AND enabled=TRUE
+ ORDER BY CASE WHEN code='WH-001' THEN 0 ELSE 1 END,id LIMIT 1
+);
 
 CREATE TABLE master_profile (
  family VARCHAR(20) NOT NULL,
@@ -50,13 +58,13 @@ CREATE TABLE warehouse_stock (
  FOREIGN KEY(sku_id) REFERENCES sku(id),
  CHECK(on_hand>=0 AND reserved>=0 AND on_hand>=reserved)
 );
-INSERT INTO warehouse_stock SELECT 1,sku_id,on_hand,reserved FROM inventory;
+INSERT INTO warehouse_stock(warehouse_id,sku_id,on_hand,reserved) SELECT @main_warehouse,sku_id,on_hand,reserved FROM inventory;
 CREATE TABLE card_location (
  iccid VARCHAR(32) PRIMARY KEY, warehouse_id BIGINT NOT NULL,
  FOREIGN KEY(iccid) REFERENCES sim_card(iccid),
  FOREIGN KEY(warehouse_id) REFERENCES base_reference(id)
 );
-INSERT INTO card_location SELECT iccid,1 FROM sim_card;
+INSERT INTO card_location(iccid,warehouse_id) SELECT iccid,@main_warehouse FROM sim_card;
 CREATE TABLE business_document (
  id BIGINT PRIMARY KEY AUTO_INCREMENT,
  kind VARCHAR(30) NOT NULL,
@@ -111,7 +119,7 @@ CREATE TABLE purchase_line_account (
 );
 
 ALTER TABLE portal_field MODIFY resource ENUM('orders','cards','inquiries') NOT NULL;
-INSERT INTO portal_field VALUES ('inquiries','id'),('inquiries','name'),('inquiries','quantity'),('inquiries','state'),('inquiries','order_id');
+INSERT INTO portal_field(resource,field_key) VALUES ('inquiries','id'),('inquiries','name'),('inquiries','quantity'),('inquiries','state'),('inquiries','order_id');
 CREATE VIEW portal_catalog AS
 SELECT s.id,COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.details,'$.public_name')),''),
        CASE WHEN s.kind='HARDWARE' THEN s.name ELSE CONCAT('物联网卡 ',s.id) END) AS name,
@@ -132,7 +140,7 @@ CREATE TABLE carrier_sync_queue (
 
 -- Preserve legacy orders and cards created before these pages were introduced.
 INSERT INTO order_header(order_id,business_day,warehouse_id)
-SELECT o.id,DATE(o.created_at),1 FROM erp_order o LEFT JOIN order_header h ON h.order_id=o.id
+SELECT o.id,DATE(o.created_at),@main_warehouse FROM erp_order o LEFT JOIN order_header h ON h.order_id=o.id
 WHERE h.order_id IS NULL;
 INSERT INTO order_line_extra(order_id,sku_id)
 SELECT l.order_id,l.sku_id FROM order_line l

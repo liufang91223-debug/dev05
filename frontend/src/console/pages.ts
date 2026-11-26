@@ -1,4 +1,4 @@
-export type Area='rules'|'register'|'order'|'doc'|'report'|'cards'|'settings'|'dashboard'|'users'
+export type Area='rules'|'register'|'order'|'doc'|'report'|'cards'|'settings'|'dashboard'|'users'|'supplier'
 export interface MenuItem { key:string; label:string; area:Area; source:string; prefix?:string; group:string; section?:string }
 const rows:MenuItem[]=[]
 function group(name:string,area:Area,entries:[string,string,string,string?,string?][]){
@@ -17,6 +17,7 @@ group('订单管理','doc',[['sales_return_list','销售退货','sales_return','
 group('仓库管理','doc',[['purchase_inbound_list','采购入库','purchase_inbound','PI','入库管理'],['other_inbound_list','其它入库','other_inbound','OI','入库管理'],
  ['sales_outbound_list','销售出库','sales_outbound','OS','出库管理'],['other_outbound_list','其它出库','other_outbound','OT','出库管理']])
 group('仓库管理','report',[['inventory_list','库存列表','stock','', '库存管理']])
+group('仓库管理','supplier',[['supplier_inbound','供应商回填','queue','SI','供应商回填']])
 group('仓库管理','doc',[['stock_taking_list','仓库盘点','stock_taking','ST'],['transfer_list','调拨管理','transfer','TR']])
 group('报表管理','report',[['report_salesOrder_detail','销售订单明细报表','sales'],['report_purchaseOrder_detail','采购订单明细报表','purchase'],
  ['report_inventory_stock','库存明细报表','stock'],['report_receivable_summary','应收账款汇总报表','receivable'],

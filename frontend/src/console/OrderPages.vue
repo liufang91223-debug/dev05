@@ -12,7 +12,7 @@ const mode=computed(()=>props.routeKey===props.item.key?'list':props.routeKey.en
 const rows=ref<Row[]>([]),setup=ref<Row>({parties:[],skus:[],accounts:[]}),refs=ref<Row[]>([]),settlements=ref<Row[]>([])
 const entry=ref<Row>({}),lines=ref<Row[]>([]),history=ref<Row[]>([]),busy=ref(false),changes=ref(false)
 const emptyLine=()=>({sku:null,quantity:1,price:0,taxRate:13,carrierAccount:null,internalNote:'',memo:''})
-const head=ref<Row>({businessDay:day(),deliveryDay:'',manager:props.user.username,warehouse:1,settlement:'',externalCode:'',notes:'',discount:0})
+const head=ref<Row>({businessDay:day(),deliveryDay:'',manager:props.user.username,warehouse:null,settlement:'',externalCode:'',notes:'',discount:0})
 const party=ref<number|null>(null),gross=computed(()=>lines.value.reduce((a,l)=>a+Number(l.quantity||0)*Number(l.price||0),0))
 const quantity=computed(()=>lines.value.reduce((a,l)=>a+Number(l.quantity||0),0))
 const partners=computed(()=>setup.value.parties.filter((p:Row)=>p.kind===(sale?'CUSTOMER':'SUPPLIER')))
@@ -26,12 +26,13 @@ function enrich(o:Row){const date=String(o.business_day||o.created_at).slice(0,1
 async function load(){
  const [s,w,z,all]=await Promise.all([api('/erp/setup'),api('/erp/register/warehouse'),api('/erp/register/settlement'),api<Row[]>('/erp/orders')])
  setup.value=s;refs.value=w.filter((r:Row)=>r.enabled);settlements.value=z
+ if(!head.value.warehouse&&refs.value.length)head.value.warehouse=refs.value[0].id
  rows.value=all.filter(r=>r.direction===props.item.source).map(enrich)
  if(props.recordId){
   const o=await api('/erp/orders/'+props.recordId)
   if(o.order.direction!==props.item.source)throw Error('单据类型与页面不符')
   entry.value=enrich(o.order);history.value=o.history;party.value=o.order.party_id
-  head.value={businessDay:entry.value.filter_date,deliveryDay:o.order.delivery_day,manager:o.order.manager||'',warehouse:o.order.warehouse_id||1,settlement:o.order.settlement||'',
+  head.value={businessDay:entry.value.filter_date,deliveryDay:o.order.delivery_day,manager:o.order.manager||'',warehouse:o.order.warehouse_id||refs.value[0]?.id||null,settlement:o.order.settlement||'',
    externalCode:o.order.external_code||'',notes:o.order.notes||'',discount:Number(o.order.discount||0)}
   lines.value=o.lines.map((r:Row)=>({sku:r.sku_id,quantity:r.quantity,price:Number(r.unit_price),carrierAccount:r.carrier_account_id,taxRate:Number(r.tax_rate??13),internalNote:r.internal_note||'',memo:r.memo||''}))
  }else lines.value=[emptyLine()]
@@ -40,7 +41,7 @@ async function run(work:()=>Promise<void>){if(busy.value)return;busy.value=true;
 function sku(id:number){return setup.value.skus.find((s:Row)=>s.id===id)||{}}
 function back(){go(props.item.key)}
 async function save(submit:boolean){
- if(!party.value||!lines.value.length||lines.value.some(l=>!l.sku||l.quantity<=0))throw Error('请选择往来单位和商品，填写明细数量')
+ if(!party.value||!head.value.warehouse||!lines.value.length||lines.value.some(l=>!l.sku||l.quantity<=0))throw Error('请选择往来单位、仓库和商品，填写明细数量')
  if(submit && !head.value.deliveryDay)throw Error('提交时须填写交货或到货日期')
  let id=props.recordId||entry.value.id
  const payload={direction:props.item.source,party:party.value,lines:lines.value,header:{...head.value,deliveryDay:head.value.deliveryDay||null}}
@@ -96,7 +97,7 @@ onMounted(()=>run(async()=>{await load();if(mode.value==='form'&&!props.recordId
  <el-form-item :label="sale?'订单日期':'采购日期'" required><el-date-picker v-model="head.businessDay" value-format="YYYY-MM-DD"/></el-form-item>
  <el-form-item :label="sale?'交货日期':'到货日期'" required><el-date-picker v-model="head.deliveryDay" value-format="YYYY-MM-DD"/></el-form-item>
  <el-form-item :label="sale?'客户经理':'采购人员'"><el-input v-model="head.manager"/></el-form-item>
- <el-form-item :label="sale?'发货仓库':'收货仓库'"><el-select v-model="head.warehouse"><el-option v-for="w in refs" :key="w.id" :value="w.id" :label="w.name"/></el-select></el-form-item>
+ <el-form-item :label="sale?'发货仓库':'收货仓库'" required><el-select v-model="head.warehouse"><el-option v-for="w in refs" :key="w.id" :value="w.id" :label="w.name"/></el-select></el-form-item>
  <el-form-item label="结算方式"><el-select v-model="head.settlement" clearable><el-option v-for="s in settlements" :key="s.id" :value="s.name" :label="s.name"/></el-select></el-form-item>
  <el-form-item :label="sale?'客户订单号':'供方单号'"><el-input v-model="head.externalCode"/></el-form-item><el-form-item class="full" label="订单备注"><el-input v-model="head.notes" type="textarea" maxlength="250"/></el-form-item></el-form>
  <div v-else class="detail-grid"><div v-for="[label,value] in [[partyLabel+'名称',entry.party_name],['订单编号',entry.code],['订单日期',head.businessDay],['交货日期',head.deliveryDay],[sale?'客户经理':'采购人员',head.manager],['仓库',refs.find(w=>w.id===head.warehouse)?.name],['结算方式',head.settlement],['对方订单号',head.externalCode],['备注',head.notes]]" :key="label"><small>{{label}}</small>{{value||'—'}}</div></div></div>

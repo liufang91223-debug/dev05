@@ -13,6 +13,11 @@ class ApiErrors {
         return ResponseEntity.status(error.getStatusCode()).body(Map.of("message",
             error.getReason()==null?"请求无法完成":error.getReason()));
     }
+    @ExceptionHandler(SupplierFailure.class)
+    ResponseEntity<Map<String,String>> supplier(SupplierFailure error) {
+        HttpStatus status=error.kind()==SupplierFailure.Kind.CONFIG?HttpStatus.BAD_REQUEST:HttpStatus.BAD_GATEWAY;
+        return ResponseEntity.status(status).body(Map.of("message",error.code()+" "+error.getMessage()));
+    }
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<Map<String,String>> constraint(DataIntegrityViolationException error) {
         if (error.getMostSpecificCause() instanceof java.sql.SQLException ex && ex.getErrorCode()==31001)

@@ -19,7 +19,9 @@ const labels: Record<string,string> = {
   carriers:'运营商接口配置', approval:'审批配置', fields:'客户可见字段', templates:'打印模板', master:'基础档案与账号',
   id:'编号', order_code:'订单编码', direction:'类型', party_name:'往来单位', state:'状态', total:'金额', quantity:'数量',
   customer_name:'客户', name:'名称', code:'编码', on_hand:'在库', reserved:'锁定',
-  iccid:'ICCID', kind:'卡类别', carrier_name:'运营商账号', msisdn:'卡号', imei:'当前设备 IMEI', activated_on:'首次激活日',
+  iccid:'ICCID', kind:'卡类别', carrier_name:'运营商账号', msisdn:'卡号', imsi:'IMSI', imei:'当前设备 IMEI', activated_on:'首次激活日',
+  last_reconciled_at:'最近回填', supplier_type:'供应商类型', api_category:'接口大类', api_sub_category:'接口子类',
+  adapter_key:'适配器标识', api_url:'接口地址',
   erp_expiry:'ERP 到期日', carrier_expiry:'运营商资费失效日', order_id:'正式订单',
   quota_kb:'套餐额度 (KB)', used_kb:'已用量 (KB)', remaining_kb:'剩余量 (KB)',
   starts_on:'周期起始', ends_on:'周期结束（不含）', created_at:'创建时间', updated_at:'更新时间',
@@ -33,9 +35,9 @@ const columns = computed(() => {
   const preferences: Record<string,string[]> = {
     orders:['id','direction','party_name','state','total','created_at'],
     inventory:['code','name','on_hand','reserved'],
-    cards:['iccid','kind','customer_name','carrier_name','msisdn','imei','activated_on','erp_expiry','carrier_expiry'],
+    cards:['iccid','kind','customer_name','carrier_name','msisdn','imsi','imei','activated_on','erp_expiry','carrier_expiry','last_reconciled_at'],
     inquiries:['id','customer_name','name','quantity','order_id'],
-    carriers:['name','credential_ref','enabled'],
+    carriers:['name','credential_ref','supplier_type','api_sub_category','adapter_key','api_url','enabled'],
   }
   return preferences[page.value] || []
 })
@@ -164,7 +166,7 @@ onMounted(() => run(start))
             <template v-if="page==='orders'">
               <el-button @click="newOrder('SALE')">新建销售订单</el-button><el-button type="primary" @click="newOrder('PURCHASE')">新建采购订单</el-button>
             </template>
-            <el-button v-if="page==='carriers'" type="primary" @click="data={name:'',credential_ref:'',enabled:false};dialog='carrier'">添加集团账号</el-button>
+            <el-button v-if="page==='carriers'" type="primary" @click="data={name:'',credential_ref:'',enabled:false,supplier_type:'CMCC',api_category:'CMCC',api_sub_category:'CMCC_CTBOSS',adapter_key:'cmcc-ctboss',api_url:''};dialog='carrier'">添加上游账号</el-button>
           </div>
         </div>
         <template v-if="page==='master'">
@@ -289,7 +291,13 @@ onMounted(() => run(start))
     <el-form v-else-if="dialog==='carrier'" label-position="top">
       <el-form-item label="集团账号名称"><el-input v-model="data.name" maxlength="120"/></el-form-item>
       <el-form-item label="环境凭据标识"><el-input v-model="data.credential_ref" placeholder="例如 GD_01"/></el-form-item>
-      <el-form-item label="启用移动查询"><el-switch v-model="data.enabled"/></el-form-item>
+      <el-form-item label="供应商类型"><el-input v-model="data.supplier_type" placeholder="CMCC"/></el-form-item>
+      <el-form-item label="接口大类"><el-input v-model="data.api_category" placeholder="CMCC"/></el-form-item>
+      <el-form-item label="接口子类"><el-input v-model="data.api_sub_category" placeholder="CMCC_CTBOSS"/></el-form-item>
+      <el-form-item label="适配器标识"><el-input v-model="data.adapter_key" placeholder="cmcc-ctboss"/></el-form-item>
+      <el-form-item label="接口地址（留空使用官方地址）"><el-input v-model="data.api_url" placeholder="https://api.iot.10086.cn"/></el-form-item>
+      <el-form-item label="启用供应商回填"><el-switch v-model="data.enabled"/></el-form-item>
+      <p class="subtitle">密码不写入数据库。启动服务时设置 CMCC_&lt;凭据标识&gt;_APPID 与 CMCC_&lt;凭据标识&gt;_PASSWORD。</p>
     </el-form>
     <el-form v-else-if="dialog==='fulfill'" label-position="top">
       <p v-if="data.lines.length===0">确认处理本单全部设备数量。</p>

@@ -60,7 +60,7 @@ public class App {
             if (password.length() < 12) throw new IllegalArgumentException("ERP_DEMO_PASSWORD 至少 12 位");
             String hash = bcrypt.encode(password);
             db.update("INSERT IGNORE INTO account(username,password_hash,role) VALUES ('admin',?,'ADMIN'),('buyer',?,'ERP')", hash, hash);
-            db.update("INSERT IGNORE INTO account(username,password_hash,role,party_id) SELECT 'customer',?,'CUSTOMER',id FROM party WHERE id=1 AND kind='CUSTOMER'", hash);
+            db.update("INSERT IGNORE INTO account(username,password_hash,role,party_id) SELECT 'customer',?,'CUSTOMER',id FROM party WHERE kind='CUSTOMER' ORDER BY id LIMIT 1", hash);
         };
     }
 }

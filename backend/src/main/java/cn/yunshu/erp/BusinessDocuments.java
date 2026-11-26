@@ -57,7 +57,9 @@ class BusinessDocuments {
             require(old.get("kind").equals(kind) && old.get("state").equals("DRAFT") && draft.revision()!=null &&
                 number(old,"revision")==draft.revision(),"单据已被修改或提交，请刷新");
         }
-        Long source=draft.sourceOrder(), invoice=draft.sourceDoc(), party=null, warehouse=draft.warehouse();
+        Long source=draft.sourceOrder(), invoice=draft.sourceDoc(), party=null;
+        Long warehouse=SHIPPING.contains(kind)||RETURNS.contains(kind)||kind.equals("sales_exchange")
+            ? null : draft.warehouse();
         List<Item> lines=draft.lines()==null?List.of():draft.lines();
         require(lines.size()<=100,"明细超过 100 行");
         BigDecimal amount=draft.amount()==null?BigDecimal.ZERO:draft.amount();
@@ -73,7 +75,8 @@ class BusinessDocuments {
             boolean sale=Set.of("sales_outbound","sales_return","sales_exchange","sales_invoice","receipt").contains(kind);
             require(order.get("direction").equals(sale?"SALE":"PURCHASE"),"订单类型与单据不匹配");
             require(order.get("state").equals(SHIPPING.contains(kind)?"APPROVED":"FULFILLED"),"来源订单当前状态不可参照");
-            party=number(order,"party_id"); warehouse=orders.warehouse(source);
+            party=number(order,"party_id");
+            if(!FINANCE.contains(kind)) warehouse=orders.warehouse(source);
             if(SHIPPING.contains(kind)) amount=orderTotal(source);
         } else require(source==null,"该单据使用手工明细");
         if(FINANCE.contains(kind)) require(amount.signum()>0,"请输入正数金额");
@@ -81,7 +84,7 @@ class BusinessDocuments {
             require(warehouse!=null,"请选择仓库");
             orders.one("SELECT id FROM base_reference WHERE family='warehouse' AND enabled=TRUE AND id=?",warehouse);
             if(kind.equals("transfer")) {
-                require(draft.targetWarehouse()!=null && !Objects.equals(warehouse,draft.targetWarehouse()),"请选择不同的调入仓库");
+                require(warehouse!=null && draft.targetWarehouse()!=null && !Objects.equals(warehouse,draft.targetWarehouse()),"请选择不同的调入仓库");
                 orders.one("SELECT id FROM base_reference WHERE family='warehouse' AND enabled=TRUE AND id=?",draft.targetWarehouse());
             }
             Set<Long> skus=new HashSet<>();

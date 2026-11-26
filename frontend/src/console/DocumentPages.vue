@@ -10,7 +10,7 @@ const kind=props.item.source,sale=kind.startsWith('sales')||kind==='receipt',shi
 const mode=props.routeKey===props.item.key?'list':props.routeKey.endsWith('_form')?'form':'detail'
 const meta=(copy as Record<string,Row>)[props.item.key]||{},stateLabel=(s:string)=>s==='POSTED'?(financial?'已登记':kind.includes('inbound')?'已入库':kind.includes('outbound')?'已出库':'已完成'):status(s)
 const records=ref<Row[]>([]),orders=ref<Row[]>([]),invoices=ref<Row[]>([]),allCards=ref<Row[]>([]),locations=ref<Row[]>([]),setup=ref<Row>({skus:[],carriers:[]})
-const d=ref<Row>({day:day(),warehouse:1,targetWarehouse:null,sourceOrder:null,sourceDoc:null,amount:0,memo:'',lines:[],revision:0})
+const d=ref<Row>({day:day(),warehouse:null,targetWarehouse:null,sourceOrder:null,sourceDoc:null,amount:0,memo:'',lines:[],revision:0})
 const busy=ref(false),cardDialog=ref(false),cardLine=ref<Row>({}),entered=ref(''),picked=ref<string[]>([]),carrier=ref<number>(),expiry=ref(''),activated=ref(''),quota=ref<number>()
 const planName=ref(''),cycleMonths=ref(1)
 const inbound=kind==='purchase_inbound', stockTaking=kind==='stock_taking'
@@ -30,7 +30,7 @@ const blank=()=>({sku:null,quantity:1,cards:[],expiry:null})
 const chosenCards=computed(()=>allCards.value.filter(r=>r.sku_id===cardLine.value.sku && (ret?(sale?r.sale_order_id===d.value.sourceOrder&&r.customer_id:r.purchase_order_id===d.value.sourceOrder&&!r.customer_id):!r.customer_id) && r.warehouse_id===d.value.warehouse))
 async function selectOrder(id:number){
  const source=await api('/erp/orders/'+id)
- d.value.sourceOrder=id;d.value.warehouse=source.order.warehouse_id||1
+ d.value.sourceOrder=id;d.value.warehouse=source.order.warehouse_id||locations.value[0]?.id||null
  d.value.lines=source.lines.filter((l:Row)=>!exchange || l.kind!=='HARDWARE').map((l:Row)=>({...blank(),sku:l.sku_id,quantity:exchange?1:l.quantity,carrier:l.carrier_account_id}))
  d.value.amount=Number(orders.value.find(r=>r.id===id)?.total||0)
 }
@@ -61,12 +61,13 @@ async function load(){
    mode==='form'&&(ship||ret)&&!inbound?api<Row[]>('/erp/cards'):Promise.resolve([])
  ])
  setup.value=s;allCards.value=cs;orders.value=all;locations.value=w.filter(r=>r.enabled)
+ if(!financial&&!d.value.warehouse&&locations.value.length)d.value.warehouse=locations.value[0].id
  records.value=data.map(r=>{const ls=typeof r.lines==='string'?JSON.parse(r.lines):r.lines;const spec=menu.find(m=>m.source===r.kind)||props.item, undo=r.kind.endsWith('_return')
  return {...r,doc_type:spec.label,code:r.doc_code||numCode(spec.prefix!,r.id,r.business_day),qty:totalQty(ls)*(undo?-1:1),display_amount:(undo?'-':'')+money(r.amount),display_state:r.state==='POSTED'&&r.kind!==kind?'已完成':stateLabel(r.state),
  filter_date:String(r.business_day).slice(0,10),source:r.source_code||'—'}})
  if(cash&&!listOnly)invoices.value=(await api<Row[]>('/erp/documents?kind='+(sale?'sales_invoice':'purchase_invoice'))).filter(r=>r.state==='POSTED')
  if(props.recordId){const r=await api('/erp/documents/'+props.recordId);if(r.kind!==kind)throw Error('单据类型不符')
- d.value={...r,sourceOrder:r.source_order,sourceDoc:r.source_doc,warehouse:r.warehouse_id,targetWarehouse:r.target_warehouse,day:r.business_day,amount:Number(r.amount)}}
+ d.value={...r,sourceOrder:r.source_order,sourceDoc:r.source_doc,warehouse:r.warehouse_id??(financial?null:locations.value[0]?.id??null),targetWarehouse:r.target_warehouse,day:r.business_day,amount:Number(r.amount)}}
  else if(props.query.has('source')){
   await selectOrder(Number(props.query.get('source')))
   const card=allCards.value.find(r=>r.iccid===props.query.get('iccid') && r.sale_order_id===d.value.sourceOrder)
@@ -76,6 +77,8 @@ async function load(){
 }
 async function run(fn:()=>Promise<void>){if(busy.value)return;busy.value=true;try{await fn()}catch(e){if(e!=='cancel'&&e!=='close')ElMessage.error((e as Error).message)}finally{busy.value=false}}
 async function save(submit:boolean){
+ if(!financial&&!d.value.warehouse)throw Error('请选择仓库')
+ if(transfer&&!d.value.targetWarehouse)throw Error('请选择调入仓库')
  const payload={kind,sourceOrder:d.value.sourceOrder,sourceDoc:d.value.sourceDoc,warehouse:d.value.warehouse,targetWarehouse:d.value.targetWarehouse,day:d.value.day,amount:d.value.amount||0,memo:d.value.memo,lines:d.value.lines,revision:d.value.revision}
  const id=d.value.id;const result=await api('/erp/documents'+(id?'/'+id:''),id?'PUT':'POST',payload)
  d.value.id=result.id;if(id)d.value.revision++
@@ -114,7 +117,8 @@ onMounted(()=>run(load))
  <template v-if="inbound"><el-form-item label="默认移动集团账号"><el-select v-model="carrier"><el-option v-for="a in setup.carriers" :key="a.id" :value="a.id" :label="a.name+' #'+a.id"/></el-select></el-form-item>
  <el-form-item label="默认单卡额度（KB）"><el-input-number v-model="quota" :min="0"/></el-form-item><el-form-item label="已知首次激活日"><el-date-picker v-model="activated" value-format="YYYY-MM-DD"/></el-form-item>
  <el-form-item v-if="sku(cardLine.sku).kind==='TERMINAL'" label="客户套餐 / 周期月数"><el-input v-model="planName" placeholder="套餐名称"/><el-input-number v-model="cycleMonths" :min="1" :max="24"/></el-form-item>
- <el-form-item label="每行一张卡，格式为 ICCID,集团账号编号,额度KB,首次激活日,套餐名称,周期月数。空值沿用默认设置"><el-input v-model="entered" type="textarea" :rows="6"/></el-form-item></template>
+ <el-form-item label="每行一张卡，格式为 ICCID,集团账号编号,额度KB,首次激活日,套餐名称,周期月数。空值沿用默认设置"><el-input v-model="entered" type="textarea" :rows="6"/></el-form-item>
+ <p class="subtitle">提交入库后，系统按集团账号自动回填卡号、IMSI、IMEI、激活日和资费。进度可在“仓库管理 → 供应商回填”查看。</p></template>
  <template v-else><el-form-item label="可选 ICCID"><el-select v-model="picked" filterable multiple style="width:100%"><el-option v-for="c in chosenCards" :key="c.iccid" :value="c.iccid" :label="c.iccid"/></el-select></el-form-item>
  <el-form-item v-if="kind==='sales_outbound'" label="ERP 销售有效期"><el-date-picker v-model="expiry" value-format="YYYY-MM-DD"/></el-form-item></template></el-form>
  <template #footer><el-button @click="cardDialog=false">取消</el-button><el-button type="primary" @click="applyCards">确认</el-button></template></el-dialog></template>

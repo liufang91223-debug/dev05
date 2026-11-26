@@ -44,11 +44,11 @@ class Cards {
                         require(card.quotaKb()==null || card.quotaKb()>=0,"额度不能小于零");
                         db.update("INSERT INTO sim_card(iccid,sku_id,carrier_account_id,purchase_order_id,activated_on,default_quota_kb) VALUES(?,?,?,?,?,?)",
                             card.iccid(),sku,card.carrier(),id,card.activatedOn(),card.quotaKb());
-                        db.update("INSERT INTO card_location VALUES(?,?)",card.iccid(),warehouse);
-                        db.update("INSERT INTO carrier_sync_queue(iccid,requested_by) VALUES(?,?)",card.iccid(),orders.actor(user));
+                        db.update("INSERT INTO card_location(iccid,warehouse_id) VALUES(?,?)",card.iccid(),warehouse);
+                        db.update("INSERT INTO carrier_sync_queue(iccid,requested_by,operation,request_id) VALUES(?,?,'IDENTITY',UUID())",card.iccid(),orders.actor(user));
                         int months=card.cycleMonths()==null?1:card.cycleMonths();
                         require(months>=1 && months<=24,"套餐周期为 1 至 24 个月");
-                        db.update("INSERT INTO sim_plan VALUES(?,?,?)",card.iccid(),clean(card.planName(),100),months);
+                        db.update("INSERT INTO sim_plan(iccid,plan_name,cycle_months) VALUES(?,?,?)",card.iccid(),clean(card.planName(),100),months);
                     } else {
                         orders.one("SELECT iccid FROM card_location WHERE iccid=? AND warehouse_id=?",card.iccid(),warehouse);
                         require(movement.expiry()!=null && !movement.expiry().isBefore(today()),"填写有效的 ERP 到期日");
@@ -89,7 +89,7 @@ class Cards {
         var months=body.cycleMonths()==null?1:body.cycleMonths();
         require(months>=1 && months<=24,"套餐周期须为 1 至 24 个月");
         var plan=clean(body.planName(),100);
-        db.update("INSERT INTO sim_plan VALUES(?,?,?) ON DUPLICATE KEY UPDATE plan_name=?,cycle_months=?",iccid,plan,months,plan,months);
+        db.update("INSERT INTO sim_plan(iccid,plan_name,cycle_months) VALUES(?,?,?) ON DUPLICATE KEY UPDATE plan_name=?,cycle_months=?",iccid,plan,months,plan,months);
         if (changed) {
             db.update("DELETE FROM carrier_services WHERE iccid=?",iccid);
             db.update("DELETE FROM cycle_meter WHERE iccid=?",iccid);
@@ -188,7 +188,7 @@ class Cards {
         return orders.project("cards",db.queryForList("""
             SELECT card.*,GREATEST(0,quota_kb-used_kb) AS remaining_kb
             FROM (
-                SELECT c.iccid,c.msisdn,c.imei,c.activated_on,c.erp_expiry,
+                SELECT c.iccid,c.msisdn,c.imsi,c.imei,c.activated_on,c.erp_expiry,
                   CASE WHEN s.kind='GROUP' THEN svc.plan_name ELSE pl.plan_name END AS plan_name,
                   CASE WHEN s.kind='GROUP' THEN g.period_month ELSE u.starts_on END AS starts_on,
                   CASE WHEN s.kind='GROUP' THEN TIMESTAMPADD(MONTH,1,g.period_month) ELSE u.ends_on END AS ends_on,

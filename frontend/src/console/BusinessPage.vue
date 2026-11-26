@@ -6,6 +6,7 @@ import type {MenuItem} from './pages'
 import ExportPage from './ExportPage.vue'
 import OrderPages from './OrderPages.vue'
 import DocumentPages from './DocumentPages.vue'
+import SupplierPage from './SupplierPage.vue'
 import RegisterPages from './RegisterPages.vue'
 import ListFrame from './ListFrame.vue'
 import {saveBook} from './workbook'
@@ -36,7 +37,7 @@ const stats=computed<[string,any,string?][]>(()=>{
  return [[area==='users'?'记录总数':'明细行数',rows.value.length,'条']]
 })
 async function load(){
- if(props.routeKey.endsWith('_export')||['order','register','doc'].includes(area))return
+ if(props.routeKey.endsWith('_export')||['order','register','doc','supplier'].includes(area))return
  busy.value=true
  try{
   if(area==='cards'){
@@ -73,7 +74,8 @@ async function stockExport(){
 }
 onMounted(load)
 </script>
-<template><ExportPage v-if="routeKey.endsWith('_export')" :item="item" :route-key="routeKey"/><OrderPages v-else-if="area==='order'" v-bind="props"/><DocumentPages v-else-if="area==='doc'" v-bind="props"/><RegisterPages v-else-if="area==='register'" v-bind="props"/>
+<template><ExportPage v-if="routeKey.endsWith('_export')" :item="item" :route-key="routeKey"/><OrderPages v-else-if="area==='order'" v-bind="props"/><DocumentPages v-else-if="area==='doc'" v-bind="props"/>
+ <SupplierPage v-else-if="area==='supplier'"/><RegisterPages v-else-if="area==='register'" v-bind="props"/>
  <template v-else><ListFrame :page="routeKey" :user-key="user.username" :title="title" :subtitle="area==='cards'?'按 ICCID、卡号或客户查询单卡明细。':source==='stock'?'按仓库核对可用、锁定和合计数量。':undefined"
  :rows="rows" :columns="labels" :stats="stats" :busy="busy" :keyword="area==='cards'?'ICCID / 卡号 / 客户':'名称 / 编码'" :date-label="area==='report'&&!['stock','receivable'].includes(source)?'业务日期':undefined"
  :export-label="area==='users'?undefined:'导出明细 CSV'" :new-label="source==='accounts'?'新增人员':undefined" @open="open" @create="form={role:'ERP',party:null};adding=true"><template #actions><el-button v-if="['sales','purchase'].includes(source)" @click="go(item.key.replace('_detail','_export'))">导出配置</el-button><el-button v-if="source==='stock'" @click="stockExport">Excel 导出（2 Sheet）</el-button></template></ListFrame>
